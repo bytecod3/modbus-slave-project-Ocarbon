@@ -22,6 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "custom_types.h"
 
 /* USER CODE END Includes */
 
@@ -44,6 +45,10 @@
 UART_HandleTypeDef huart1;
 
 osThreadId defaultTaskHandle;
+
+osThreadId x_task_get_device_diagnostics_handle;
+osThreadId x_task_print_to_terminal_handle;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -55,6 +60,12 @@ static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
+
+/**
+ * Task prototypes
+ *
+ */
+void x_task_get_device_diagnostics(void const* argument);
 
 /* USER CODE END PFP */
 
@@ -120,6 +131,15 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+
+  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityNormal, 0, 128); // task to get the device parameters
+  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
+
+  osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 128); // task to print to UART if using UART debug
+  x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
+
+  x_task_print_to_terminal_handle
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -245,6 +265,33 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/**
+ * @fn void x_task_get_device_diagnostics(const void*)
+ * @brief Get the device diagnostics values (see firmware docs for more info)
+ *
+ * @param args parameter to the task
+ */
+void x_task_get_device_diagnostics(void const* args) {
+	diagnostics_type_t diagnostics;
+
+	for(;;) {
+		diagnostics.chip_parameters.uid[0] = HAL_GetUIDw0();		// read the chip's UID
+		diagnostics.chip_parameters.uid[0] = HAL_GetUIDw0();
+		diagnostics.chip_parameters.uid[0] = HAL_GetUIDw0();
+
+		uint32_t core_freq = HAL_RCC_GetHCLKFreq();					// read the HCLK frequency. todo: read PCLK low freq speed
+		diagnostics.chip_parameters.core_frequency = core_freq;
+
+		diagnostics.free_heap_size = xPortGetFreeHeapSize();			// free heap size at the time this function is called
+		diagnostics.minimum_ever_free_heap_size = xPortGetMinimumEverFreeHeapSize();
+
+		// debug to uart
+
+		vTaskDelay(pdMS_TO_TICKS(10));
+
+	}
+}
 
 /* USER CODE END 4 */
 
