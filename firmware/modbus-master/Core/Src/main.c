@@ -94,7 +94,7 @@ void x_task_print_to_terminal(void const* argument);
  * @param message char buffer to print
  */
 void UART_print(const char* message) {
-
+	HAL_UART_Transmit(&huart1,(uint8_t*)message , strlen(message), HAL_MAX_DELAY);
 }
 
 /* USER CODE END 0 */
@@ -131,6 +131,9 @@ int main(void)
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+  HAL_UART_Transmit(&huart1, (uint8_t*)"=======MODBUS SLAVE======= \r\n\n", strlen("=======MODBUS SLAVE======= \r\n\n"), HAL_MAX_DELAY);
+  HAL_Delay(1000);
+
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -163,6 +166,8 @@ int main(void)
   osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 128); // task to print to UART if using UART debug
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
 
+
+  // todo -> check successful task creation
 
   /* USER CODE END RTOS_THREADS */
 
@@ -311,7 +316,7 @@ void x_task_get_device_diagnostics(void const* args) {
 		diagnostics.minimum_ever_free_heap_size = xPortGetMinimumEverFreeHeapSize();
 
 		sprintf(uart_tx_buffer,   // package uart message
-				"UID: %lu%lu%lu, HCLK: %lu, FREE_HEAP: %zu, MIN_EVER_HEAP: %zu \r\n",
+				"UID: %lu%lu%lu, HCLK: %lu, FREE_HEAP: %u, MIN_EVER_HEAP: %u \r\n",
 				diagnostics.chip_parameters.uid[0],
 				diagnostics.chip_parameters.uid[1],
 				diagnostics.chip_parameters.uid[2],
