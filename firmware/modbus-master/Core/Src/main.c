@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "custom_types.h"
+#include "string.h"
+#include "stdio.h"
 
 /* USER CODE END Includes */
 
@@ -51,6 +53,13 @@ osThreadId x_task_print_to_terminal_handle;
 
 /* USER CODE BEGIN PV */
 
+// diagnostics variable
+diagnostics_type_t diagnostics;
+
+char uart_tx_buffer[255]; // todo: remove magic buffer size
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -62,15 +71,31 @@ void StartDefaultTask(void const * argument);
 /* USER CODE BEGIN PFP */
 
 /**
+ * Function prototypes
+ */
+void UART_print(const char* message);
+
+/**
  * Task prototypes
  *
  */
 void x_task_get_device_diagnostics(void const* argument);
+void x_task_print_to_terminal(void const* argument);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/**
+ * @fn void UART_print(const char*)
+ * @brief This function prints messages to serial terminal
+ *
+ * @param message char buffer to print
+ */
+void UART_print(const char* message) {
+
+}
 
 /* USER CODE END 0 */
 
@@ -132,13 +157,12 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 
-  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityNormal, 0, 128); // task to get the device parameters
+  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
   x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
 
   osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 128); // task to print to UART if using UART debug
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
 
-  x_task_print_to_terminal_handle
 
   /* USER CODE END RTOS_THREADS */
 
@@ -273,12 +297,12 @@ static void MX_GPIO_Init(void)
  * @param args parameter to the task
  */
 void x_task_get_device_diagnostics(void const* args) {
-	diagnostics_type_t diagnostics;
+
 
 	for(;;) {
 		diagnostics.chip_parameters.uid[0] = HAL_GetUIDw0();		// read the chip's UID
 		diagnostics.chip_parameters.uid[0] = HAL_GetUIDw0();
-		diagnostics.chip_parameters.uid[0] = HAL_GetUIDw0();
+		diagnostics.chip_parameters.uid[2] = HAL_GetUIDw0();        // todo: create a 96 bit struct for this (64 bit + 32 bit)
 
 		uint32_t core_freq = HAL_RCC_GetHCLKFreq();					// read the HCLK frequency. todo: read PCLK low freq speed
 		diagnostics.chip_parameters.core_frequency = core_freq;
@@ -286,10 +310,34 @@ void x_task_get_device_diagnostics(void const* args) {
 		diagnostics.free_heap_size = xPortGetFreeHeapSize();			// free heap size at the time this function is called
 		diagnostics.minimum_ever_free_heap_size = xPortGetMinimumEverFreeHeapSize();
 
-		// debug to uart
+		sprintf(uart_tx_buffer,   // package uart message
+				"UID: %lu%lu%lu, HCLK: %lu, FREE_HEAP: %zu, MIN_EVER_HEAP: %zu \r\n",
+				diagnostics.chip_parameters.uid[0],
+				diagnostics.chip_parameters.uid[1],
+				diagnostics.chip_parameters.uid[2],
+				diagnostics.chip_parameters.core_frequency,
+				diagnostics.free_heap_size,
+				diagnostics.minimum_ever_free_heap_size
+		);
 
 		vTaskDelay(pdMS_TO_TICKS(10));
 
+	}
+}
+
+/**
+ * @fn void x_task_print_to_terminal(const void*)
+ * @brief This task prints data to terminal
+ *
+ * @param arguments
+ */
+void x_task_print_to_terminal(void const* arguments ) {
+
+	for(;;) {
+		// todo: use event group to queue peek here
+		// use mutex to prevent writing to the uart tx buffer while the buffer is printing
+		UART_print(uart_tx_buffer);
+		vTaskDelay(pdMS_TO_TICKS(5)); 	// prevent task starvation
 	}
 }
 
