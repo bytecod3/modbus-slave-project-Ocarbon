@@ -1,7 +1,7 @@
 /**
 * @file custom_types.h
 * @brief My defined data types for various data related stuff
-* @author Edwin Mwiti
+* @author Edwin
 * @date Sep 24 2025
 *
 */
@@ -12,6 +12,12 @@
 
 #include "cmsis_os.h"
 #include "custom_config.h"
+
+// unconventional boolean
+typedef enum {
+	FALSE = 0,
+	TRUE
+} boolean_t;
 
 #if GET_INTERNAL_PARAMETERS
 typedef struct chip_parameters {
