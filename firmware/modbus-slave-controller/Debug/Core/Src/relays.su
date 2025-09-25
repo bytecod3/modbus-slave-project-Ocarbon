@@ -1,0 +1,2 @@
+../Core/Src/relays.c:20:9:relay_resolve_bank	16	static
+../Core/Src/relays.c:48:6:relay_set	24	static

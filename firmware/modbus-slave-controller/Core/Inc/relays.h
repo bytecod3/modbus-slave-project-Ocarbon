@@ -8,6 +8,13 @@
 
 #include "custom_types.h"
 
+#define NUM_RELAYS 	(32)
+
+#define BANK0_LIMIT (8)
+#define BANK1_LIMIT (15)
+#define BANK2_LIMIT (24)
+#define BANK3_LIMIT ()
+
 extern uint8_t RELAY_BANK_0;
 extern uint8_t RELAY_BANK_1;
 extern uint8_t RELAY_BANK_2;
