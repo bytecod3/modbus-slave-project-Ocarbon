@@ -89,6 +89,48 @@ void MCP_write_pin(MCP23017_instance inst, uint8_t pin, uint8_t level) {
 }
 
 /**
+ * @brief This function will set all the pins in a specific port to the given state
+ * @param port The port to set. (0 for PORTA, 1 for PORTB)
+ */
+void MCP_all_pinmode(MCP23017_instance inst, uint8_t state, uint8_t port) {
+	if(port != 0 || port != 1) return;
+
+	uint8_t reg;
+	uint8_t reg_value[1];
+
+	if(port == 0) {
+		reg = IODIRA;
+	} else {
+		reg = IODIRB;
+	}
+
+	// get the current value of the IODIR register
+	// read from the port register
+	HAL_I2C_Mem_Read(
+		inst->i2c_handle,
+		inst->address,
+		reg,
+		I2C_MEMADD_SIZE_8BIT,
+		reg_value,
+		1,
+		HAL_MAX_DELAY);
+
+	// update the value with all pins as output
+	reg_value[0] &= ~(0xFF);
+
+	// write back to IODIR register
+	// update the registers
+	HAL_I2C_Mem_Write(					// todo: put this in its own function to maintain DRY
+			inst->i2c_handle,
+			inst->address,
+			reg,
+			I2C_MEMADD_SIZE_8BIT,
+			reg_value,
+			1,
+			HAL_MAX_DELAY);
+}
+
+/**
  * read a single pin
  */
 uint8_t MCP_read_pin(MCP23017_instance inst, uint8_t pin) {

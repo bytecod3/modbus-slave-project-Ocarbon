@@ -7,9 +7,12 @@
 #include "relays.h"
 #include "mcp23017.h"
 
-// expander instances
-MCP23017 exp1;
-MCP23017 exp1;
+/**
+ * I want to expose a clean RELAY drover API so I use a static expander object
+ * that is visible in this file
+ */
+static MCP23017 exp1;
+static MCP23017 exp2;
 
 MCP23017_instance expander1_inst = &exp1;
 MCP23017_instance expander2_inst = &exp2;
@@ -26,8 +29,22 @@ uint8_t* RELAY_BANKS[NUM_BANKS] = {
 		&RELAY_BANK_3
 };
 
+/**
+ * @brief this function initialize all the relay pins as outputs
+ * @param none
+ */
 void relay_init() {
 
+	// initialize the expander
+	// Note: teh address is hardware configured using A0,A1,A2 pins on the expander chip
+	MCP_initialize(expander1_inst, &hi2c1, EXPANDER1_BASE_ADDRESS);
+	MCP_initialize(expander1_inst, &hi2c1, EXPANDER1_BASE_ADDRESS);
+
+	// set all pins as output
+	MCP_all_pinmode(expander1_inst, HIGH, PORTA);
+	MCP_all_pinmode(expander1_inst, HIGH, PORTB);
+	MCP_all_pinmode(expander2_inst, HIGH, PORTA);
+	MCP_all_pinmode(expander2_inst, HIGH, PORTB);
 }
 
 /**
@@ -88,6 +105,19 @@ void relay_set(uint8_t bank, uint8_t relay_num, uint8_t state) {
 	default:
 		break;
 	}
+}
+
+/**
+ * @brief This function will read a single bank
+ */
+uint8_t relay_read_single_bank(uint8_t bank, uint8_t relay_num) {
+
+}
+
+/**
+ * @brief This function will read all the relay states and return a uint32_t with the relay states
+ */
+uint32_t relay_read_all_banks() {
 
 
 }
