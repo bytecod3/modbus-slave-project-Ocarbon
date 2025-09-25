@@ -5,13 +5,30 @@
  */
 
 #include "relays.h"
+#include "mcp23017.h"
 
+// expander instances
+MCP23017 exp1;
+MCP23017 exp1;
 
-extern uint8_t RELAY_BANK_0;
-extern uint8_t RELAY_BANK_1;
-extern uint8_t RELAY_BANK_2;
-extern uint8_t RELAY_BANK_3;
+MCP23017_instance expander1_inst = &exp1;
+MCP23017_instance expander2_inst = &exp2;
 
+uint8_t RELAY_BANK_0 = 0;
+uint8_t RELAY_BANK_1 = 0;
+uint8_t RELAY_BANK_2 = 0;
+uint8_t RELAY_BANK_3 = 0;
+
+uint8_t* RELAY_BANKS[NUM_BANKS] = {
+		&RELAY_BANK_0,
+		&RELAY_BANK_1,
+		&RELAY_BANK_2,
+		&RELAY_BANK_3
+};
+
+void relay_init() {
+
+}
 
 /**
  * @brief This function determines which bank the relay is located
@@ -37,6 +54,7 @@ uint8_t relay_resolve_bank(uint8_t n) {
 			return -1; // handled
 		}
 	}
+
 }
 
 /**
@@ -45,10 +63,31 @@ uint8_t relay_resolve_bank(uint8_t n) {
  * Writes HIGH on that pin
  */
 
-void relay_set(uint8_t relay_number) {
-	uint8_t n = relay_resolve_bank(relay_number);
-	if(n != -1) {
+void relay_set(uint8_t bank, uint8_t relay_num, uint8_t state) {
 
+	// check if the bank number and relay number are valid
+	if (bank >= 4 || relay_num >= 8) return;
 
+	switch (bank) {
+		case RELAY_BANK_0:
+			MCP_write_pin(expander1_inst, relay_num, state);
+			break;
+
+		case RELAY_BANK_1:
+			MCP_write_pin(expander1_inst, relay_num + RELAY_PORTB_OFFSET, state);
+			break;
+
+		case RELAY_BANK_2:
+			MCP_Write_pin(expander2_inst, relay_num, state);
+			break;
+
+		case RELAY_BANK_3:
+			MCP_Write_pin(expander2_inst, relay_num + RELAY_PORTB_OFFSET, state);
+			break;
+
+	default:
+		break;
 	}
+
+
 }

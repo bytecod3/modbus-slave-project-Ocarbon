@@ -25,6 +25,7 @@
 #include "custom_types.h"
 #include "string.h"
 #include "stdio.h"
+#include "mcp23017.h"
 
 /* USER CODE END Includes */
 
@@ -53,9 +54,11 @@ osThreadId x_task_print_to_terminal_handle;
 
 /* USER CODE BEGIN PV */
 
+//============ RELAY EXPANDER INSTANCES ============
+
+
 // diagnostics variable
 diagnostics_type_t diagnostics;
-
 char uart_tx_buffer[255]; // todo: remove magic buffer size
 
 

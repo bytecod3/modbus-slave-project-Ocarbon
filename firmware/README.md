@@ -28,7 +28,7 @@ These tasks are shared among the slave and master devices:
 ##### x_device_get_diagnostics task
 This task is used to collect general board/device data
 
-The data that U collect is:
+The data that I collect is:
     - chip ID
     - Die temperature
     - core clock frequency

@@ -337,12 +337,22 @@ Discarded input sections
  .text          0x00000000        0x0 ./Core/Src/relays.o
  .data          0x00000000        0x0 ./Core/Src/relays.o
  .bss           0x00000000        0x0 ./Core/Src/relays.o
+ .bss.RELAY_BANKS
+                0x00000000        0x4 ./Core/Src/relays.o
+ .bss.RELAY_BANK_0
+                0x00000000        0x1 ./Core/Src/relays.o
+ .bss.RELAY_BANK_1
+                0x00000000        0x1 ./Core/Src/relays.o
+ .bss.RELAY_BANK_2
+                0x00000000        0x1 ./Core/Src/relays.o
+ .bss.RELAY_BANK_3
+                0x00000000        0x1 ./Core/Src/relays.o
  .text.relay_resolve_bank
                 0x00000000       0x80 ./Core/Src/relays.o
  .text.relay_set
-                0x00000000       0x1e ./Core/Src/relays.o
- .debug_info    0x00000000       0xf5 ./Core/Src/relays.o
- .debug_abbrev  0x00000000       0xa4 ./Core/Src/relays.o
+                0x00000000       0x26 ./Core/Src/relays.o
+ .debug_info    0x00000000      0x188 ./Core/Src/relays.o
+ .debug_abbrev  0x00000000      0x109 ./Core/Src/relays.o
  .debug_aranges
                 0x00000000       0x28 ./Core/Src/relays.o
  .debug_rnglists
@@ -370,9 +380,9 @@ Discarded input sections
  .debug_macro   0x00000000       0x19 ./Core/Src/relays.o
  .debug_macro   0x00000000       0xf2 ./Core/Src/relays.o
  .debug_macro   0x00000000       0x16 ./Core/Src/relays.o
- .debug_macro   0x00000000       0x22 ./Core/Src/relays.o
- .debug_line    0x00000000      0x546 ./Core/Src/relays.o
- .debug_str     0x00000000     0xa168 ./Core/Src/relays.o
+ .debug_macro   0x00000000       0x28 ./Core/Src/relays.o
+ .debug_line    0x00000000      0x549 ./Core/Src/relays.o
+ .debug_str     0x00000000     0xa1c8 ./Core/Src/relays.o
  .comment       0x00000000       0x44 ./Core/Src/relays.o
  .debug_frame   0x00000000       0x5c ./Core/Src/relays.o
  .ARM.attributes
