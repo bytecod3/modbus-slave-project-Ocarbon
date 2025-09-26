@@ -26,7 +26,7 @@ To organize 32 relays logically, and to remain simple, I used bit groups. Each r
 |BANK_2|uint8_t | Relay 16-23 |
 |BANK_3|uint8_t | Relay 24-31 |
 
-These are defined as typdefs in ```relay.h``` file. Since there are 32 relays to be controlled, I use an expander via i2c for this function.
+These are defined in ```relay.h``` file. Since there are 32 relays to be controlled, I use an expander via i2c for this function.
 
 #### Expander driver
 THe driver I use is the MCP23017. I choose it because it has 16 bit outputs whcih means I only need 2 expanders to handle 32 relays.
