@@ -1,0 +1,7 @@
+../Core/Src/relays.c:25:6:relay_init	8	static
+../Core/Src/relays.c:43:9:relay_resolve_bank	16	static
+../Core/Src/relays.c:72:6:relay_set	16	static
+../Core/Src/relays.c:102:9:relay_read	16	static
+../Core/Src/relays.c:133:9:relay_read_bank	24	static
+../Core/Src/relays.c:168:6:relay_clear	16	static
+../Core/Src/relays.c:198:6:relay_clear_bank	16	static

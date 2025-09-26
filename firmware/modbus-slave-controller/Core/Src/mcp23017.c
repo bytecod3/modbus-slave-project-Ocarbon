@@ -116,7 +116,7 @@ void MCP_all_pinmode(MCP23017_instance inst, uint8_t state, uint8_t port) {
 		HAL_MAX_DELAY);
 
 	// update the value with all pins as output
-	reg_value[0] &= ~(0xFF);
+	reg_value[0] = 0x00;
 
 	// write back to IODIR register
 	// update the registers
@@ -184,7 +184,48 @@ uint8_t MCP_read_port(MCP23017_instance inst, uint8_t port_num) {
 			HAL_MAX_DELAY);
 
 	return reg_value[0];
+
 }
 
+/**
+ * @brief This function clears a port to 0
+ */
+void MCP_clear_port(MCP23017_instance inst, uint8_t port_num) {
+	// todoL=: check for null instances
+	if(port_num >= 2) return;
+
+	uint8_t reg;
+	uint8_t reg_value[1];
+
+	if(port_num) {
+		reg = MCP_GPIOA;
+	} else {
+		reg = MCP_GPIOB;
+	}
+
+	// get whatever values are currently in the register
+	HAL_I2C_Mem_Read(
+		inst->i2c_handle,
+		inst->address,
+		reg,
+		I2C_MEMADD_SIZE_8BIT,
+		reg_value,
+		1,
+		HAL_MAX_DELAY);
+
+	// clear all the bits
+	reg_value[0] = 0;
+
+	// write back to the GPIO register
+	HAL_I2C_Mem_Write(					// todo: put this in its own function to maintain DRY
+		inst->i2c_handle,
+		inst->address,
+		reg,
+		I2C_MEMADD_SIZE_8BIT,
+		reg_value,
+		1,
+		HAL_MAX_DELAY);
+
+}
 
 

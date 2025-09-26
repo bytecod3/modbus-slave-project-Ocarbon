@@ -10,6 +10,7 @@
 #define INC_MCP23017_H_
 
 #include "stm32f4xx_hal.h"
+#include "mcp23017.h"
 
 #define INPUT 		(0)
 #define OUTPUT 		(1)
@@ -48,13 +49,13 @@ typedef struct _MCP23017{
 /* instance of MCP23017 expander*/
 typedef MCP23017* MCP23017_instance;
 
-
 void MCP_initialize(MCP23017_instance inst, I2C_HandleTypeDef* i2c_handle, uint8_t address);
 void MCP_pinmode(MCP23017_instance inst, uint8_t pin, uint8_t mode);
-void MCP_all_pinmode(MCP23017_instance inst, uint8_t state);
+void MCP_all_pinmode(MCP23017_instance inst, uint8_t state, uint8_t port);
 void MCP_write_pin(MCP23017_instance inst, uint8_t pin, uint8_t level);
 uint8_t MCP_read_pin(MCP23017_instance inst, uint8_t pin);
 uint8_t MCP_read_port(MCP23017_instance inst, uint8_t port_num);
+void MCP_clear_port(MCP23017_instance inst, uint8_t port_num);
 
 
 #endif /* INC_MCP23017_H_ */

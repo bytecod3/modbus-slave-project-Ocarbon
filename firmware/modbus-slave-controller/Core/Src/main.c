@@ -25,7 +25,7 @@
 #include "custom_types.h"
 #include "string.h"
 #include "stdio.h"
-#include "mcp23017.h"
+//#include "relays.h"
 
 /* USER CODE END Includes */
 
@@ -51,6 +51,8 @@ UART_HandleTypeDef huart1;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+osThreadId x_task_get_device_diagnostics_handle;
+osThreadId x_task_print_to_terminal_handle;
 
 //============ RELAY EXPANDER INSTANCES ============
 
