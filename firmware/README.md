@@ -90,12 +90,35 @@ The following is the structure of a MODBUS RTU packet:
 For efficiency due to handling a large data packet, I use UART with DMA for data reception.
 The data is routed via MAX485 transceiver to handle TTL to RS485 conversion. Then my driver handles this next part which is written to parse/decode the packet:
 
+#### Compatibility with S7-1200
+The S7 is going to be the master device that pulls data from MODBUS server, in this case my device is the slace device. TO maintain compatibilty, the following MODBUS settings must be respected:
+- Serial setings (BAUD:115200, 8-N-1)
+- Uses standard MODBUS RTU framing
+- confirms the 3.5 char SILENT INTERVAL
+- Responds correctly to function codes
+- Handle MODBUS exceptions correctly
+- Handle slave IDs correctly
+- RE/DE correct control
+- CRC-16 computing
+
 #### MAX485-MODBUS driver
-I wrote a basic driver to handle MODBUS data reception. This driver exposes the following API calls:
+I wrote a basic driver to handle MODBUS data reception. This STM32 driver was to implement most if not all of the above requirements for S7-1200.
+It exposes the following interface:
+
+ - MAX485 device init
+ - End of transmission silent interval using UART IDLE LINE DETECTION
+ - Correctly decodes MODBUS frame from master
+    - Message length decoding
+    - extraction of MODBUS function code
+    - extraction of MODBUS data
+    - CRC calculation
+- Exception handling for MODBUS
+- MODBUS timeout
 
 
 
 ####
+Data length is unknown so I use the UART DMA to receive this packet. Using the STM32_UART_IDLE line detection feature. I detect the end of each stream so that the CPU can process the received stream.
 
 
 #### General RTOS tasks
