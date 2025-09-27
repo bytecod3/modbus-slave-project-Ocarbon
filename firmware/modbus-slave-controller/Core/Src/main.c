@@ -13,6 +13,8 @@
   * in the root directory of this software component.
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
+  *
+  * THIS IS THE SLAVE DEVICE
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -25,17 +27,26 @@
 #include "custom_types.h"
 #include "string.h"
 #include "stdio.h"
-//#include "relays.h"
+#include "relays.h" // todo: create a task to control the relays
+#include "max485.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+/** modbus variables */
+#define MODBUS_MSG_MAX_SIZE 255 // maximum size that can be received via modbus protocol
+
+int modbus_rx_len = 0; // actual received modbus message length
+uint8_t modbus_rx_message[MODBUS_MSG_MAX_SIZE] = {0}; // to hold the received modbus message
 
 /* USER CODE END PD */
 
@@ -48,11 +59,13 @@
 I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart2;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 osThreadId x_task_get_device_diagnostics_handle;
 osThreadId x_task_print_to_terminal_handle;
+osThreadId x_task_receive_modbus_handle;
 
 //============ RELAY EXPANDER INSTANCES ============
 
@@ -61,8 +74,6 @@ osThreadId x_task_print_to_terminal_handle;
 diagnostics_type_t diagnostics;
 char uart_tx_buffer[255]; // todo: remove magic buffer size
 
-
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -70,14 +81,30 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_USART2_UART_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
 /**
- * Function prototypes
+ * ====================== Function prototypes ===========================
+ */
+
+/**
+ * @brief Function to print to console
  */
 void UART_print(const char* message);
+
+/**
+ * @brief Function to send data to MODBUS master
+ *
+ */
+void send_modbus_data_to_UART1(char* msg);
+
+/**
+ * @brief Reply to MODBUS
+ */
+void modbus_reply(char* msg, uint16_t length);
 
 /**
  * Task prototypes
@@ -85,6 +112,7 @@ void UART_print(const char* message);
  */
 void x_task_get_device_diagnostics(void const* argument);
 void x_task_print_to_terminal(void const* argument);
+void x_task_receive_modbus(void const* argment);
 
 /* USER CODE END PFP */
 
@@ -134,7 +162,12 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_I2C1_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  // enable IDLE LINE INTERRUPT for UART2 that is connected to MAX485 module
+  HAL_UARTEx_ReceiveToIdle_IT(&huart2, modbus_rx_message, MODBUS_MSG_MAX_SIZE);
+  //HAL_UARTEx_ReceiveToIdle_IT(&huart2, rx_data, MSG_LEN);
 
   HAL_UART_Transmit(&huart1, (uint8_t*)"=======MODBUS SLAVE======= \r\n\n", strlen("=======MODBUS SLAVE======= \r\n\n"), HAL_MAX_DELAY);
   HAL_Delay(1000);
@@ -170,6 +203,11 @@ int main(void)
 
   osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 128); // task to print to UART if using UART debug
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
+
+
+  osThreadDef(receive_modbus, x_task_receive_modbus, osPriorityNormal, 0, 128); // task to receive MODBUS data
+  x_task_receive_modbus_handle = osThreadCreate(osThread(receive_modbus), NULL);
+
 
 
   // todo -> check successful task creation
@@ -301,6 +339,39 @@ static void MX_USART1_UART_Init(void)
 }
 
 /**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -321,12 +392,22 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(user_led_GPIO_Port, user_led_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : user_led_Pin */
   GPIO_InitStruct.Pin = user_led_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(user_led_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DE_RE_PIN_Pin */
+  GPIO_InitStruct.Pin = DE_RE_PIN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(DE_RE_PIN_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -381,9 +462,65 @@ void x_task_print_to_terminal(void const* arguments ) {
 	for(;;) {
 		// todo: use event group to queue peek here
 		// use mutex to prevent writing to the uart tx buffer while the buffer is printing
-		UART_print(uart_tx_buffer);
+		//UART_print(uart_tx_buffer);
 		vTaskDelay(pdMS_TO_TICKS(5)); 	// prevent task starvation
 	}
+}
+
+/**
+ * @brief THis task receives modbus data from the master and parses it
+ */
+void x_task_receive_modbus(void const* argument) {
+
+	for(;;) {
+
+
+	}
+
+}
+
+
+/**
+ * @brief Reply to MODBUS Master
+ */
+void modbus_reply(char* msg, uint16_t length) {
+	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_SET);
+
+	// send adta
+	HAL_UART_Transmit(&huart2, modbus_rx_message, strlen(modbus_rx_message), 500);
+
+	// enable receive
+	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_RESET);
+}
+
+/**
+ * @brief send MODBUS response back to the master
+ */
+void send_modbus_data_to_UART1(char* msg) {
+	// enable transmit
+	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 500);
+
+}
+
+/**
+ * @brief Callback called when IDLE is detected or we a re done receiving MODBUS Message
+ */
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
+
+	if(huart->Instance == USART2) {
+		// NUL TERMINATE
+		if(Size < MODBUS_MSG_MAX_SIZE) {
+			modbus_rx_message[Size] = '\0';
+		}
+
+		send_modbus_data_to_UART1( (char*) modbus_rx_message);
+
+		// restart the RECEIVE TO idle interrupt
+		HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*) modbus_rx_message, MODBUS_MSG_MAX_SIZE);
+
+
+	}
+
 }
 
 /* USER CODE END 4 */

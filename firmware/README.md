@@ -77,7 +77,26 @@ To meet hardware abstraction, the MCP23017 is only visible through the relay dri
 #### Scalability of the relay controls
 Now, because I used an I2C expander, the MCP23017 has 3 address bits(A0,A1, A2), so it can handle up to 8 devices on the same I2C peripheral. Those are 128 relays that can be added.
 Scaling the Relay control class is as "simple" adding another MCP23017 IC and hardware-configuring the address.
-On the software side, the driver remains the same, but if we add more relays we need to add more banks. SHould be trivial. Rather, This was my approach.
+On the software side, the driver remains the same, but if we add more relays we need to add more banks. SHould be trivial. Rather, this was my approach.
+
+
+## 2. MODBUS RTU
+My implementation and handling of MODBUS RTU is as follow:
+
+The following is the structure of a MODBUS RTU packet:
+
+
+
+For efficiency due to handling a large data packet, I use UART with DMA for data reception.
+The data is routed via MAX485 transceiver to handle TTL to RS485 conversion. Then my driver handles this next part which is written to parse/decode the packet:
+
+#### MAX485-MODBUS driver
+I wrote a basic driver to handle MODBUS data reception. This driver exposes the following API calls:
+
+
+
+####
+
 
 #### General RTOS tasks
 These tasks are shared among the slave and master devices:
@@ -101,7 +120,5 @@ The data that I collect is:
 The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INTERNAL_PARAMETERS``` to 0 in the ```custom_config.h``` file.
 
 
-
-### MODBUS Slave
 
 ### Priority table and logic behind it

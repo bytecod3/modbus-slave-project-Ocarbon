@@ -15,10 +15,32 @@ void MAX485_init(MAX485_instance inst, uint8_t pin) {
 	inst->DE_RE_pin = pin;
 }
 
-
 /**
  * @brief This functions enables the transmit mode on MAX485 IC
  */
 void MAX485_enable_transmit(MAX485_instance inst) {
-	HAL_GPIO_
+	//write 1 on the DE pin
+	HAL_GPIO_WritePin(inst->DE_RE_PORT, inst->DE_RE_pin, GPIO_PIN_SET);
+
+}
+
+void MAX485_enable_receive(MAX485_instance inst) {
+	// write 1 on the RE pin
+	HAL_GPIO_WritePin(inst->DE_RE_PORT, inst->DE_RE_pin, GPIO_PIN_RESET);
+}
+
+
+/**
+ * @brief This function receives the UART data as a buffer and decodes it
+ */
+void MAX485_receive(MAX485_instance inst, uint8_t* data, uint16_t len, uint32_t timeout) {
+	// enable receive
+	MAX485_enable_receive(inst);
+
+	// check the expected length
+	// confirm data integrity
+	// extract the desired fes
+
+
+
 }

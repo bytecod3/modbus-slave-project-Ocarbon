@@ -15,7 +15,9 @@
  */
 typedef struct {
 	UART_HandleTypeDef* uart_instance;
-	uint8_t DE_RE_pin;
+	GPIO_TypeDef* DE_RE_PORT;
+	uint16_t DE_RE_pin;
+
 
 } MAX485;
 
