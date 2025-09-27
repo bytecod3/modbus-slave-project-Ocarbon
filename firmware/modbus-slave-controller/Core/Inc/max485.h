@@ -10,6 +10,19 @@
 
 #include "stm32f4xx_hal.h"
 
+#define MODBUS_MSG_MAX_SIZE 255 // maximum size that can be received via modbus protocol
+
+
+/**
+ * @brief typedef for MODBUS data
+ */
+typedef struct _modbus_packet {
+	uint16_t len;
+	uint8_t data[MODBUS_MSG_MAX_SIZE];
+} ModBus_type_t;
+
+// todo: create  pointer typedef
+
 /**
  * @brief defines a struct for a MAX485 transceiver
  */
@@ -17,8 +30,6 @@ typedef struct {
 	UART_HandleTypeDef* uart_instance;
 	GPIO_TypeDef* DE_RE_PORT;
 	uint16_t DE_RE_pin;
-
-
 } MAX485;
 
 typedef MAX485* MAX485_instance;

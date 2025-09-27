@@ -43,8 +43,6 @@
 /* USER CODE BEGIN PD */
 
 /** modbus variables */
-#define MODBUS_MSG_MAX_SIZE 255 // maximum size that can be received via modbus protocol
-
 int modbus_rx_len = 0; // actual received modbus message length
 uint8_t modbus_rx_message[MODBUS_MSG_MAX_SIZE] = {0}; // to hold the received modbus message
 
@@ -67,7 +65,8 @@ osThreadId x_task_get_device_diagnostics_handle;
 osThreadId x_task_print_to_terminal_handle;
 osThreadId x_task_receive_modbus_handle;
 
-//============ RELAY EXPANDER INSTANCES ============
+//============ DATA QUEUE HANDLES  ============
+QueueHandle_t modbus_queue_handle;
 
 
 // diagnostics variable
@@ -112,7 +111,7 @@ void modbus_reply(char* msg, uint16_t length);
  */
 void x_task_get_device_diagnostics(void const* argument);
 void x_task_print_to_terminal(void const* argument);
-void x_task_receive_modbus(void const* argment);
+void x_task_receive_modbus(void const* argument);
 
 /* USER CODE END PFP */
 
@@ -121,12 +120,23 @@ void x_task_receive_modbus(void const* argment);
 
 /**
  * @fn void UART_print(const char*)
- * @brief This function prints messages to serial terminal
+ * @brief This function prints messages to serial terminal regadless of where it is called
+ * It solvs the problem of not being able to print to terminal once t
+ * the RTOS starts creating tasks, queues etc...
  *
  * @param message char buffer to print
  */
-void UART_print(const char* message) {
-	HAL_UART_Transmit(&huart1,(uint8_t*)message , strlen(message), HAL_MAX_DELAY);
+void UART_print(const char* msg) {
+	const char* p = msg;
+
+	while(*p) {
+		while(!(huart1.Instance->SR & USART_SR_TXE)); 	// wait until TX buffer is empty
+		huart1.Instance->DR = (*p++ & 0xFF);			// write next character
+	}
+
+	//HAL_UART_Transmit(&huart1,(uint8_t*)message , strlen(message), HAL_MAX_DELAY);
+
+	while(!(huart1.Instance->SR & USART_SR_TC)); 		// wait for last byte to fully transmit
 }
 
 /* USER CODE END 0 */
@@ -169,8 +179,9 @@ int main(void)
   HAL_UARTEx_ReceiveToIdle_IT(&huart2, modbus_rx_message, MODBUS_MSG_MAX_SIZE);
   //HAL_UARTEx_ReceiveToIdle_IT(&huart2, rx_data, MSG_LEN);
 
-  HAL_UART_Transmit(&huart1, (uint8_t*)"=======MODBUS SLAVE======= \r\n\n", strlen("=======MODBUS SLAVE======= \r\n\n"), HAL_MAX_DELAY);
-  HAL_Delay(1000);
+  UART_print("=======MODBUS SLAVE DEVICE======= \r\n");
+//  HAL_UART_Transmit(&huart1, (uint8_t*)"=======MODBUS SLAVE DEVICE======= \r\n\n", strlen("=======MODBUS SLAVE DEVICE======= \r\n\n"), HAL_MAX_DELAY);
+//  HAL_Delay(1000);
 
   /* USER CODE END 2 */
 
@@ -188,6 +199,17 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+  modbus_queue_handle = xQueueCreate(5, sizeof(ModBus_type_t)); // todo: check for successful creation
+
+  if(modbus_queue_handle != NULL) {
+	  //UART_print("MODBUS queue created OK");
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS queue created OK\r\n", strlen("MODBUS queue created OK\r\n"), HAL_MAX_DELAY);
+  } else {
+	  //UART_print("MODBUS queue failed to create");
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS queue failed to create\r\n", strlen("MODBUS queue failed to create\r\n"), HAL_MAX_DELAY);
+  }
+
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -468,16 +490,32 @@ void x_task_print_to_terminal(void const* arguments ) {
 }
 
 /**
+ * @brief send MODBUS message to UART1 for debugging
+ */
+void send_modbus_data_to_UART1(char* msg) {
+	// enable transmit
+	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(  (char*) msg), 500);
+
+}
+
+
+/**
  * @brief THis task receives modbus data from the master and parses it
  */
 void x_task_receive_modbus(void const* argument) {
+	ModBus_type_t modbus_message;
 
 	for(;;) {
-
-
+		// todo: use queue PEEK
+		if(xQueueReceive(modbus_queue_handle, &modbus_message, portMAX_DELAY) == pdTRUE) {
+			// debug via USART1
+			send_modbus_data_to_UART1( (char*) modbus_message.data);
+			vTaskDelay(pdMS_TO_TICKS(5));
+		}
 	}
 
 }
+
 
 
 /**
@@ -487,37 +525,33 @@ void modbus_reply(char* msg, uint16_t length) {
 	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_SET);
 
 	// send adta
-	HAL_UART_Transmit(&huart2, modbus_rx_message, strlen(modbus_rx_message), 500);
+	HAL_UART_Transmit(&huart2, modbus_rx_message, strlen((char*)modbus_rx_message), 500);
 
 	// enable receive
 	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_RESET);
 }
 
-/**
- * @brief send MODBUS response back to the master
- */
-void send_modbus_data_to_UART1(char* msg) {
-	// enable transmit
-	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 500);
-
-}
 
 /**
  * @brief Callback called when IDLE is detected or we a re done receiving MODBUS Message
  */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
-	if(huart->Instance == USART2) {
-		// NUL TERMINATE
-		if(Size < MODBUS_MSG_MAX_SIZE) {
-			modbus_rx_message[Size] = '\0';
-		}
+	if(huart->Instance == USART2) { 			  // MAX485 is connected to USART2
 
-		send_modbus_data_to_UART1( (char*) modbus_rx_message);
+		ModBus_type_t msg;
+		msg.len = Size; 						   // whatever length that has been received
+		memcpy(msg.data, modbus_rx_message, Size); // copy to MODBUS data field
+
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xQueueSendFromISR(modbus_queue_handle, &msg, &xHigherPriorityTaskWoken);
+
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);	// if task waiting for modbus has a higher priority, it will ranm(pre-empt a lower priroty task)
+
+		//send_modbus_data_to_UART1( (char*) modbus_rx_message);
 
 		// restart the RECEIVE TO idle interrupt
 		HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*) modbus_rx_message, MODBUS_MSG_MAX_SIZE);
-
 
 	}
 
@@ -535,6 +569,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
+
   /* Infinite loop */
   for(;;)
   {
