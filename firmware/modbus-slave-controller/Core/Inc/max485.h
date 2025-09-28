@@ -11,7 +11,7 @@
 #include "stm32f4xx_hal.h"
 
 #define MODBUS_MSG_MAX_SIZE 255 // maximum size that can be received via modbus protocol
-
+#define SLAVE_ID 0x01
 
 /**
  * @brief typedef for MODBUS data
@@ -39,5 +39,6 @@ void MAX485_enable_transmit(MAX485_instance inst);
 void MAX485_enable_receive(MAX485_instance inst);
 void MAX485_send(MAX485_instance inst, uint8_t* data, uint16_t len, uint32_t timeout);
 void MAX485_receive(MAX485_instance inst, uint8_t* data, uint16_t len, uint32_t timeout);
+uint16_t MAX485_calculate_CRC(const uint8_t* buf, uint16_t len);
 
 #endif /* INC_MAX485_H_ */

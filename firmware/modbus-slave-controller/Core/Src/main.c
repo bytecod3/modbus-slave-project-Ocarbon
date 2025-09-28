@@ -504,12 +504,45 @@ void send_modbus_data_to_UART1(char* msg) {
  */
 void x_task_receive_modbus(void const* argument) {
 	ModBus_type_t modbus_message;
+	uint8_t response[MODBUS_MSG_MAX_SIZE];
+	uint16_t response_length;
 
 	for(;;) {
 		// todo: use queue PEEK
 		if(xQueueReceive(modbus_queue_handle, &modbus_message, portMAX_DELAY) == pdTRUE) {
 			// debug via USART1
-			send_modbus_data_to_UART1( (char*) modbus_message.data);
+			//send_modbus_data_to_UART1( (char*) modbus_message.data);
+
+			if(modbus_message.len < 4) continue; // skip this frame its too short
+
+			// check CRC
+			uint16_t crc_hi = modbus_message.data[modbus_message.len - 1];
+			uint16_t crc_lo = modbus_message.data[modbus_message.len - 2];
+			uint16_t received_crc = (crc_hi << 8) | crc_lo;
+
+			/* calculate crc and compare */
+			uint16_t calculated_crc = MAX485_calculate_CRC(modbus_message.data, modbus_message.len - 2);
+
+			if(received_crc != calculated_crc) {
+				continue; // ignore bad CRC
+			}
+
+			/* check if this message is addressed for me */
+			uint8_t received_slave_id = modbus_message.data[0];
+			if((received_slave_id != SLAVE_ID ) && received_slave_id != 0 ) {
+				continue;
+			}
+
+			/* check what function code was received */
+			uint8_t function_code = modbus_message.data[1];
+
+			// Here I handle supported functions
+			if(function_code == 0x01) { // READ COILS  todo: put this into its own function
+				//MAX_485_read_coils_handler();
+				HAL_UART_Transmit(&huart1, "READ COILS FUNCTION CODE\r\n", strlen("READ COILS FUNCTION CODE\r\n"), HAL_MAX_DELAY);
+			}
+
+
 			vTaskDelay(pdMS_TO_TICKS(5));
 		}
 	}

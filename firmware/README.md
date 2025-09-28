@@ -79,19 +79,69 @@ Now, because I used an I2C expander, the MCP23017 has 3 address bits(A0,A1, A2),
 Scaling the Relay control class is as "simple" adding another MCP23017 IC and hardware-configuring the address.
 On the software side, the driver remains the same, but if we add more relays we need to add more banks. SHould be trivial. Rather, this was my approach.
 
+## Testing and validation
+I have tested and validated this code/functions with actual hardware expander chip and STM32F401CCU6, the following tests have been carried out:
+    - STM32F401CCU6 code compilation
+    - MCP23017 Driver GPIO expansion
+The image below shows a crude breadbosrd model of this.
+
+[todo -insert image]
+
+However, for Relay control, PLC ladder logic is used for industrial setting. How I would test this is I would write PLC ladder logic code to verify ....
+
+[todo]
+
 
 ## 2. MODBUS RTU
-My implementation and handling of MODBUS RTU is as follow:
+This section will describe how I designed for MODBUS RTU.
+MODBUS consists of a slave and a master. The master sends requests to slave and the slave responds back with the requested data. The list below shows the function codes that can be used under MODBUS:
 
-The following is the structure of a MODBUS RTU packet:
+| Function Code | Hex Value | Description                          |
+|---------------|-----------|--------------------------------------|
+| 01            | 0x01      | Read Coils                           |
+| 02            | 0x02      | Read Discrete Inputs                 |
+| 03            | 0x03      | Read Holding Registers               |
+| 04            | 0x04      | Read Input Registers                 |
+| 05            | 0x05      | Write Single Coil                    |
+| 06            | 0x06      | Write Single Register                |
+| 08            | 0x08      | Diagnostics (Serial Line only)       |
+| 11            | 0x0B      | Get Comm Event Counter (Serial Line only) |
+| 15            | 0x0F      | Write Multiple Coils                 |
+| 16            | 0x10      | Write Multiple Registers             |
+| 17            | 0x11      | Report Server ID (Serial Line only)  |
+| 22            | 0x16      | Mask Write Register                  |
+| 23            | 0x17      | Read/Write Multiple Registers        |
+| 43/14         | 0x2B/0x0E | Read Device Identification           |
+
+The following is the generic structure of MODBUS RTU packet:
+
+```c
+[ Slave Address ][ Function Code ][ Data ][ CRC Low ][ CRC High ]
+
+```
+
+Therefore depending on the function code being implemented, the data section can vary.
+
+#### 1. Read coils (0x01)
+
+The following is the structure of a MODBUS RTU packet from the master to request for coil data.
+
+```c
+[ Slave Addr ][ 0x01 ][ Start Addr Hi ][ Start Addr Lo ][ Quantity Hi ][ Quantity Lo ][ CRC Lo ][ CRC Hi ]
+
+```
 
 
+The master sends request to the slave which then interprets the request to determine which operation it should perfom (read coils, etc)
 
-For efficiency due to handling a large data packet, I use UART with DMA for data reception.
-The data is routed via MAX485 transceiver to handle TTL to RS485 conversion. Then my driver handles this next part which is written to parse/decode the packet:
+The following is the structure of the MODBUS RTU packet from the master side:
+
+[insert MODBUS master request packet here]
+
+This means that my device (slave) must intepret these requests and perform the requested function and then respond back to the master with the requested data.
 
 #### Compatibility with S7-1200
-The S7 is going to be the master device that pulls data from MODBUS server, in this case my device is the slace device. TO maintain compatibilty, the following MODBUS settings must be respected:
+The S7 is going to be the master device that pulls data from MODBUS server, in this case my device is the slace device. TO maintain compatibilty, I made sure this device achieves the following list:
 - Serial setings (BAUD:115200, 8-N-1)
 - Uses standard MODBUS RTU framing
 - confirms the 3.5 char SILENT INTERVAL
@@ -117,11 +167,84 @@ It exposes the following interface:
 
 
 
-####
-Data length is unknown so I use the UART DMA to receive this packet. Using the STM32_UART_IDLE line detection feature. I detect the end of each stream so that the CPU can process the received stream.
+#### Handling unknown data length
+For efficiency due to handling a large data packet, I use UART with IDLE LINE DETECTION for data reception. This allows to detect the end of transmission burst (3.5 char SILENT Interval).
+
+Now, from the MODBUS protocol, the maximum packet size is 255 bytes.
+The actual data length is 252 bytes
+
+[todo- confirm]
+
+The data is routed via MAX485 transceiver to handle TTL to RS485 conversion. Then my driver handles this next part which is written to parse/decode the packet:
+
+#### MAX485 driver API
+a) Driver initialization
+I initialize MAX485 instance with the ```UART peripheral```, ```GPIO PORT ``` and the ```DE_RE pin```.
+
+```c
+
+typedef struct {
+	UART_HandleTypeDef* uart_instance;
+	GPIO_TypeDef* DE_RE_PORT;
+	uint16_t DE_RE_pin;
+} MAX485;
+
+typedef MAX485* MAX485_instance;
+
+```
+
+b) Enable transmit
+This function is used to set MAX485 for transmission mode
+
+```c
+
+/**
+ * @brief This functions enables the transmit mode on MAX485 IC
+ */
+void MAX485_enable_transmit(MAX485_instance inst) {
+	//write 1 on the DE pin
+	HAL_GPIO_WritePin(inst->DE_RE_PORT, inst->DE_RE_pin, GPIO_PIN_SET);
+
+}
+```
+
+c) Enable receive
+This function is used to set MAX485 for receive mode
+
+```c
+
+void MAX485_enable_receive(MAX485_instance inst) {
+	// write 1 on the RE pin
+	HAL_GPIO_WritePin(inst->DE_RE_PORT, inst->DE_RE_pin, GPIO_PIN_RESET);
+}
+```
+
+d) Send data (send response)
+This function is used to send a response back to the master device
+
+e) Calculate CRC
+This function is used to calculate and confirm CRC from the received master request
+
+f) build exception
+This function is used to create a MODBUS exception code
+
+g) read coil
+This functions implements the (0x01) function code to read a single coil
+
+h) write single coil
+This function implements the (0x05) function code to write single coil
 
 
-#### General RTOS tasks
+i) write multiple coils
+This function implements the (0x0F) function code to write to multiple coils
+
+
+## 3. Testing and Validation
+I have tested most of this code with actual hardware. The following tests have been carried out and confirmed:
+    - MCP23
+
+
+## 3. RTOS tasks
 These tasks are shared among the slave and master devices:
 - x_device_get_diagnostics
 
