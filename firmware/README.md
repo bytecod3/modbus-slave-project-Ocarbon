@@ -269,6 +269,9 @@ The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INT
 
 ### Priority table and logic behind it
 
+#### Interrupt vector Priority
+Priority must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (often 5).
+
 
 ### Todos/feature list
 1. Add function to check supported MODBUS RTU function codes

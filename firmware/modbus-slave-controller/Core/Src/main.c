@@ -45,6 +45,7 @@
 /** modbus variables */
 int modbus_rx_len = 0; // actual received modbus message length
 uint8_t modbus_rx_message[MODBUS_MSG_MAX_SIZE] = {0}; // to hold the received modbus message
+char uart_buff[10] = {0}; // for debug
 
 #define COIL_COUNT 100
 uint8_t COIL[COIL_COUNT] = {0}; // this is for debugging - does not follow MODBUS protocol of 1 bit per coil
@@ -106,6 +107,11 @@ void UART_print(const char* message);
 void send_modbus_data_to_UART1(char* msg);
 
 /**
+ * @brief send response to master
+ */
+void MODBUS_send_response(uint8_t* response, uint16_t len);
+
+/**
  * @brief Reply to MODBUS
  */
 void modbus_reply(char* msg, uint16_t length);
@@ -131,17 +137,21 @@ void x_task_receive_modbus(void const* argument);
  *
  * @param message char buffer to print
  */
+//void UART_print(const char* msg) {
+//	const char* p = msg;
+//
+//	while(*p) {
+//		while(!(huart1.Instance->SR & USART_SR_TXE)); 	// wait until TX buffer is empty
+//		huart1.Instance->DR = (*p++ & 0xFF);			// write next character
+//	}
+//
+//	//HAL_UART_Transmit(&huart1,(uint8_t*)message , strlen(message), HAL_MAX_DELAY);
+//
+//	while(!(huart1.Instance->SR & USART_SR_TC)); 		// wait for last byte to fully transmit
+//}
+
 void UART_print(const char* msg) {
-	const char* p = msg;
-
-	while(*p) {
-		while(!(huart1.Instance->SR & USART_SR_TXE)); 	// wait until TX buffer is empty
-		huart1.Instance->DR = (*p++ & 0xFF);			// write next character
-	}
-
-	//HAL_UART_Transmit(&huart1,(uint8_t*)message , strlen(message), HAL_MAX_DELAY);
-
-	while(!(huart1.Instance->SR & USART_SR_TC)); 		// wait for last byte to fully transmit
+	HAL_UART_Transmit(&huart1, (uint8_t*) msg, strlen(msg), HAL_MAX_DELAY);
 }
 
 /* USER CODE END 0 */
@@ -182,7 +192,6 @@ int main(void)
 
   // enable IDLE LINE INTERRUPT for UART2 that is connected to MAX485 module
   HAL_UARTEx_ReceiveToIdle_IT(&huart2, modbus_rx_message, MODBUS_MSG_MAX_SIZE);
-  //HAL_UARTEx_ReceiveToIdle_IT(&huart2, rx_data, MSG_LEN);
 
   UART_print("=======MODBUS SLAVE DEVICE======= \r\n");
 //  HAL_UART_Transmit(&huart1, (uint8_t*)"=======MODBUS SLAVE DEVICE======= \r\n\n", strlen("=======MODBUS SLAVE DEVICE======= \r\n\n"), HAL_MAX_DELAY);
@@ -232,7 +241,7 @@ int main(void)
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
 
 
-  osThreadDef(receive_modbus, x_task_receive_modbus, osPriorityIdle + 5 , 0, 128); // task to receive MODBUS data
+  osThreadDef(receive_modbus, x_task_receive_modbus, osPriorityNormal , 0, 2048); // task to receive MODBUS data
   x_task_receive_modbus_handle = osThreadCreate(osThread(receive_modbus), NULL);
 
 
@@ -422,6 +431,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(ISR_DBG_LED_GPIO_Port, ISR_DBG_LED_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : user_led_Pin */
   GPIO_InitStruct.Pin = user_led_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -435,6 +447,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(DE_RE_PIN_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : ISR_DBG_LED_Pin */
+  GPIO_InitStruct.Pin = ISR_DBG_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(ISR_DBG_LED_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -503,6 +522,12 @@ void send_modbus_data_to_UART1(char* msg) {
 
 }
 
+void MODBUS_send_response(uint8_t* response, uint16_t len) {
+	HAL_UART_Transmit(&huart2, response, len, HAL_MAX_DELAY);
+
+	// todo: use interrupts here
+}
+
 /**
  * @brief THis task receives MODBUS data from the master and parses it
  */
@@ -511,10 +536,12 @@ void x_task_receive_modbus(void const* argument) {
 	uint8_t response[MODBUS_MSG_MAX_SIZE];  // this will hold the slave response back to master
 	uint16_t response_length;
 
+	//HAL_UARTEx_ReceiveToIdle_IT(&huart2, modbus_rx_message, MODBUS_MSG_MAX_SIZE);
+
 	for(;;) {
 		send_modbus_data_to_UART1("In receive modbus data task\n");
 		// todo: use queue PEEK
-		if(xQueueReceive(modbus_queue_handle, &modbus_message, portMAX_DELAY) == pdTRUE) {
+		if(xQueueReceive(modbus_queue_handle, &modbus_message, 1000) == pdTRUE) {
 			send_modbus_data_to_UART1("RECEIVED MASTER REQUEST OK\n");
 			// debug via USART1
 
@@ -588,6 +615,7 @@ void x_task_receive_modbus(void const* argument) {
 				uint8_t response_length = index;
 
 				// todo: transmit to master
+				MODBUS_send_response(response, response_length);
 
 			} else if (function_code == 0x05) {   /* WRITE SINGLE COIL */
 
@@ -671,7 +699,11 @@ void modbus_reply(char* msg, uint16_t length) {
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
 	if(huart->Instance == USART2) { 			  // MAX485 is connected to USART2
-		send_modbus_data_to_UART1("Data arrived on MODBUS\n");
+
+		//HAL_UART_Transmit(&huart1, (uint8_t*)"Received on USART 2\r\n", strlen( "Received on USART 2\r\n"), HAL_MAX_DELAY);
+
+		//send_modbus_data_to_UART1("Data arrived on MODBUS\n");
+		//HAL_GPIO_TogglePin(ISR_DBG_LED_GPIO_Port, ISR_DBG_LED_Pin);
 
 		ModBus_type_t msg;
 		msg.len = Size; 						   // whatever length that has been received
@@ -679,10 +711,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 		xQueueSendFromISR(modbus_queue_handle, &msg, &xHigherPriorityTaskWoken);
+		// todo: check for failed queue send and log error
 
 		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);	// if task waiting for modbus has a higher priority, it will ranm(pre-empt a lower priroty task)
-
-		//send_modbus_data_to_UART1( (char*) modbus_rx_message);
 
 		// restart the RECEIVE TO idle interrupt
 		HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*) modbus_rx_message, MODBUS_MSG_MAX_SIZE);
