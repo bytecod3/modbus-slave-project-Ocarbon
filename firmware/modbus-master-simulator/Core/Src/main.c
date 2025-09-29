@@ -66,7 +66,7 @@ void send_data(uint8_t*);
 /* USER CODE BEGIN 0 */
 #define MSG_LEN 40
 
-uint8_t tx_data[MSG_LEN];
+char tx_data[MSG_LEN];
 uint8_t rx_data[MSG_LEN];
 int indx = 0;
 
@@ -118,7 +118,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	//PREPARE THE MESSAGE
-	sprintf((char*)tx_data, "MSG FROM MASTER, %d", indx++);
+	sprintf(tx_data, "MSG FROM MASTER, %d", indx++);
 	send_data(tx_data);
 
 //	master_read_coils_request(0x01, 0x0000, 8);
@@ -268,14 +268,14 @@ void master_read_coils_request(uint8_t slave_addr, uint16_t start_addr, uint16_t
 	tx_frame[6] = crc & 0xFF;		 // CRC LOW byte
 	tx_frame[7] = (crc >> 8) & 0xFF; // CRC HIGH byte
 
-	send_data(tx_frame);
+	//send_data(tx_frame);
 }
 
 void send_data(uint8_t* data) {
 	 // continuously send a string to slave after every second
 	 // and wait for received response
-	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_SET); // enable tranmit
-	HAL_UART_Transmit(&huart2, data, strlen((char*) data), 1000);
+	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_SET); // enable transmit
+	HAL_UART_Transmit(&huart2, data, strlen(data), 1000);
 	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_RESET); // enable receive
 }
 

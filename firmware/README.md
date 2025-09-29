@@ -281,4 +281,6 @@ The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INT
 2. https://www.mesulog.fr/help/modbus/index.html?page=write-single-coil-f05.html
 3. https://www.simplymodbus.ca/FC15.htm
 4. https://www.freertos.org/Documentation/02-Kernel/07-Books-and-manual/01-RTOS_book
-5.
+5. https://scadasploit.dev/posts/2021/07/hacking-modbus-tcp-simulation-in-linux/
+6. https://www.modbustools.com/modbus.html
+7. https://camatsystem.com/wp-content/uploads/2015/12/Modbus-manual-TD80.pdf

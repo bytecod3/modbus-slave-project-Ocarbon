@@ -27,25 +27,25 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
  11 .ARM.attributes 00000030  00000000  00000000  0000505c  2**0
                   CONTENTS, READONLY
- 12 .debug_info   000083ae  00000000  00000000  0000508c  2**0
+ 12 .debug_info   000083be  00000000  00000000  0000508c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 13 .debug_abbrev 0000177c  00000000  00000000  0000d43a  2**0
+ 13 .debug_abbrev 0000177c  00000000  00000000  0000d44a  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 14 .debug_aranges 00000700  00000000  00000000  0000ebb8  2**3
+ 14 .debug_aranges 00000700  00000000  00000000  0000ebc8  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 15 .debug_rnglists 00000554  00000000  00000000  0000f2b8  2**0
+ 15 .debug_rnglists 00000554  00000000  00000000  0000f2c8  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_macro  000156d0  00000000  00000000  0000f80c  2**0
+ 16 .debug_macro  000156d0  00000000  00000000  0000f81c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   000083ae  00000000  00000000  00024edc  2**0
+ 17 .debug_line   000083ab  00000000  00000000  00024eec  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    0008522f  00000000  00000000  0002d28a  2**0
+ 18 .debug_str    0008522f  00000000  00000000  0002d297  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000043  00000000  00000000  000b24b9  2**0
+ 19 .comment      00000043  00000000  00000000  000b24c6  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  000020b4  00000000  00000000  000b24fc  2**2
+ 20 .debug_frame  000020b4  00000000  00000000  000b250c  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 21 .debug_line_str 0000007f  00000000  00000000  000b45b0  2**0
+ 21 .debug_line_str 0000007f  00000000  00000000  000b45c0  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -483,7 +483,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	//PREPARE THE MESSAGE
-	sprintf((char*)tx_data, "MSG FROM MASTER, %d", indx++);
+	sprintf(tx_data, "MSG FROM MASTER, %d", indx++);
  80005da:	4b0b      	ldr	r3, [pc, #44]	@ (8000608 <main+0x4c>)
  80005dc:	681b      	ldr	r3, [r3, #0]
  80005de:	1c5a      	adds	r2, r3, #1
@@ -501,7 +501,7 @@ int main(void)
 	HAL_Delay(1000);
  80005f4:	f44f 707a 	mov.w	r0, #1000	@ 0x3e8
  80005f8:	f000 faaa 	bl	8000b50 <HAL_Delay>
-	sprintf((char*)tx_data, "MSG FROM MASTER, %d", indx++);
+	sprintf(tx_data, "MSG FROM MASTER, %d", indx++);
  80005fc:	bf00      	nop
  80005fe:	e7ec      	b.n	80005da <main+0x1e>
  8000600:	200000e8 	.word	0x200000e8
@@ -815,7 +815,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 080007d4 <send_data>:
 	tx_frame[7] = (crc >> 8) & 0xFF; // CRC HIGH byte
 
-	send_data(tx_frame);
+	//send_data(tx_frame);
 }
 
 void send_data(uint8_t* data) {
@@ -825,12 +825,12 @@ void send_data(uint8_t* data) {
  80007da:	6078      	str	r0, [r7, #4]
 	 // continuously send a string to slave after every second
 	 // and wait for received response
-	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_SET); // enable tranmit
+	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_SET); // enable transmit
  80007dc:	2201      	movs	r2, #1
  80007de:	2110      	movs	r1, #16
  80007e0:	480b      	ldr	r0, [pc, #44]	@ (8000810 <send_data+0x3c>)
  80007e2:	f000 fd01 	bl	80011e8 <HAL_GPIO_WritePin>
-	HAL_UART_Transmit(&huart2, data, strlen((char*) data), 1000);
+	HAL_UART_Transmit(&huart2, data, strlen(data), 1000);
  80007e6:	6878      	ldr	r0, [r7, #4]
  80007e8:	f7ff fcfa 	bl	80001e0 <strlen>
  80007ec:	4603      	mov	r3, r0
