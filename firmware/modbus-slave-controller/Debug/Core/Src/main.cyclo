@@ -8,9 +8,9 @@
 ../Core/Src/main.c:447:6:x_task_get_device_diagnostics	1
 ../Core/Src/main.c:482:6:x_task_print_to_terminal	1
 ../Core/Src/main.c:495:6:send_modbus_data_to_UART1	1
-../Core/Src/main.c:505:6:x_task_receive_modbus	7
-../Core/Src/main.c:557:6:modbus_reply	1
-../Core/Src/main.c:571:6:HAL_UARTEx_RxEventCallback	3
-../Core/Src/main.c:602:6:StartDefaultTask	1
-../Core/Src/main.c:622:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:640:6:Error_Handler	1
+../Core/Src/main.c:504:6:x_task_receive_modbus	7
+../Core/Src/main.c:560:6:modbus_reply	1
+../Core/Src/main.c:574:6:HAL_UARTEx_RxEventCallback	3
+../Core/Src/main.c:606:6:StartDefaultTask	1
+../Core/Src/main.c:626:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:644:6:Error_Handler	1

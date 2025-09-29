@@ -53,8 +53,11 @@ UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
+
 /* USER CODE BEGIN PFP */
 
+uint16_t calculate_CRC(const uint8_t* buf, uint16_t len);
+void master_read_coils_request(uint8_t slave_addr, uint16_t start_addr, uint16_t quantity);
 void send_data(uint8_t*);
 
 /* USER CODE END PFP */
@@ -117,6 +120,8 @@ int main(void)
 	//PREPARE THE MESSAGE
 	sprintf((char*)tx_data, "MSG FROM MASTER, %d", indx++);
 	send_data(tx_data);
+
+//	master_read_coils_request(0x01, 0x0000, 8);
 	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
@@ -232,6 +237,38 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	// restart the interrupt because HAL disables the interrupt
 	// after each call
 	HAL_UARTEx_ReceiveToIdle_IT(&huart2, rx_data, MSG_LEN);
+}
+
+uint16_t calculate_CRC(const uint8_t* buf, uint16_t len) {
+	uint16_t crc = 0xFFFF;
+	for(uint16_t pos = 0; pos < len; pos++) {
+		crc ^= (uint16_t)buf[pos];
+
+		for(int i = 0; i < 8; i++) {
+			if(crc & 0x0001) crc = (crc>>1) ^ 0xA001;
+			else crc >>= 1;
+		}
+	}
+
+	return crc;
+}
+
+void master_read_coils_request(uint8_t slave_addr, uint16_t start_addr, uint16_t quantity) {
+	uint8_t tx_frame[8];
+	tx_frame[0] = slave_addr;
+	tx_frame[1] = 0x01;
+	tx_frame[2] = (start_addr >> 8) & 0xFF;
+	tx_frame[3] = (start_addr) & 0xFF;
+	tx_frame[4] = (quantity >> 8) & 0xFF;
+	tx_frame[5] = (quantity) & 0xFF;
+
+	/* calculate CRC */
+	uint16_t crc = calculate_CRC(tx_frame, 6);
+
+	tx_frame[6] = crc & 0xFF;		 // CRC LOW byte
+	tx_frame[7] = (crc >> 8) & 0xFF; // CRC HIGH byte
+
+	send_data(tx_frame);
 }
 
 void send_data(uint8_t* data) {

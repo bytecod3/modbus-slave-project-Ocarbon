@@ -131,6 +131,8 @@ The following is the structure of a MODBUS RTU packet from the master to request
 
 ```
 
+Coils are defined as single-bit values that represent the status of a input/output value. They are boolean variables. For integration with relay control, since the relays are arranged in BANKS, a single BANK May be considered a coil byte, with each bit representing the status of a relay.
+
 
 The master sends request to the slave which then interprets the request to determine which operation it should perfom (read coils, etc)
 
@@ -164,8 +166,6 @@ It exposes the following interface:
     - CRC calculation
 - Exception handling for MODBUS
 - MODBUS timeout
-
-
 
 #### Handling unknown data length
 For efficiency due to handling a large data packet, I use UART with IDLE LINE DETECTION for data reception. This allows to detect the end of transmission burst (3.5 char SILENT Interval).
@@ -268,3 +268,13 @@ The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INT
 
 
 ### Priority table and logic behind it
+
+
+### Todos/feature list
+1. Add function to check supported MODBUS RTU function codes
+2.
+
+
+## REFERENCES
+1. https://ozeki.hu/p_5876-mobdbus-function-code-1-read-coils.html
+2.

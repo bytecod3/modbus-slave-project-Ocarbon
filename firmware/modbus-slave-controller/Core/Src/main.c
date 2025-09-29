@@ -46,6 +46,8 @@
 int modbus_rx_len = 0; // actual received modbus message length
 uint8_t modbus_rx_message[MODBUS_MSG_MAX_SIZE] = {0}; // to hold the received modbus message
 
+uint8_t COIL[1] = {0};
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -227,7 +229,7 @@ int main(void)
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
 
 
-  osThreadDef(receive_modbus, x_task_receive_modbus, osPriorityNormal, 0, 128); // task to receive MODBUS data
+  osThreadDef(receive_modbus, x_task_receive_modbus, osPriorityIdle + 5 , 0, 128); // task to receive MODBUS data
   x_task_receive_modbus_handle = osThreadCreate(osThread(receive_modbus), NULL);
 
 
@@ -498,20 +500,20 @@ void send_modbus_data_to_UART1(char* msg) {
 
 }
 
-
 /**
- * @brief THis task receives modbus data from the master and parses it
+ * @brief THis task receives MODBUS data from the master and parses it
  */
 void x_task_receive_modbus(void const* argument) {
 	ModBus_type_t modbus_message;
-	uint8_t response[MODBUS_MSG_MAX_SIZE];
+	uint8_t response[MODBUS_MSG_MAX_SIZE];  // this will hold the slave response back to master
 	uint16_t response_length;
 
 	for(;;) {
+		send_modbus_data_to_UART1("In receive modbus data task\n");
 		// todo: use queue PEEK
 		if(xQueueReceive(modbus_queue_handle, &modbus_message, portMAX_DELAY) == pdTRUE) {
+			send_modbus_data_to_UART1("RECEIVED MASTER REQUEST OK\n");
 			// debug via USART1
-			//send_modbus_data_to_UART1( (char*) modbus_message.data);
 
 			if(modbus_message.len < 4) continue; // skip this frame its too short
 
@@ -536,15 +538,96 @@ void x_task_receive_modbus(void const* argument) {
 			/* check what function code was received */
 			uint8_t function_code = modbus_message.data[1];
 
+			// todo: check for supported functions
+
 			// Here I handle supported functions
-			if(function_code == 0x01) { // READ COILS  todo: put this into its own function
+			if(function_code == 0x01) { // READ COILS  todo: put this into its own functions
+
+				// sample packet structure for read coils request is as follows
+				// [addr][func=0x01][addr_hi][addr_lo][qty_hi][qty_lo][crc_lo][crc_hi]
 				//MAX_485_read_coils_handler();
-				HAL_UART_Transmit(&huart1, "READ COILS FUNCTION CODE\r\n", strlen("READ COILS FUNCTION CODE\r\n"), HAL_MAX_DELAY);
+				HAL_UART_Transmit(&huart1, (uint8_t*) "READ COILS FUNCTION CODE\r\n", strlen("READ COILS FUNCTION CODE\r\n"), HAL_MAX_DELAY);
+
+				uint16_t start = (modbus_message.data[2] << 8) | (modbus_message.data[3]); // what coil to start from
+				uint16_t qty = (modbus_message.data[4] << 8) | (modbus_message.data[5]);
+
+				// todo: check number of coils if valid greater than 2000 of less than 1
+				// build an exception here
+
+				// get slave address
+				response[0] = received_slave_id;
+				response[1] = 0x01; // function code
+				response[2] = (qty + 7)/8; // 7 ensures a proper roundup to get number of bytes needed to hold the requested number of bits
+
+				uint16_t index = 3;
+				uint8_t coil_byte = 0;
+				uint8_t bit_pos = 0;
+
+				for(uint16_t i = 0; i < qty; i++) {
+					if(COIL[start + i]) {
+						coil_byte |= (1 << bit_pos); // if coil is 1, set the bit at that position
+					}
+
+					bit_pos++; // next bit position
+
+					if(bit_pos == 8) {
+						resp[index] = coil_byte;
+						coil_byte = 0;
+						bit_pos = 0;
+					}
+				}
+
+				// append the CRC byte
+				uint16_t crc = MAX485_calculate_CRC(response, index);
+				response[index++] = crc & 0xFF; // get CRC LOW
+				response[index++] = (crc >> 8) & 0xFF; // get CRC HIGH
+
+				*response_length = index;
+
+				// todo: transmit to master
+
+			} else if (function_code == 0x05) {   /* WRITE SINGLE COIL */
+
+				// get the starting coil address
+				uint16_t start_addr = (modbus_message.data[2] << 8) | modbus_message.data[3];
+				uint16_t coil_value = (modbus_message.data[4] << 8) | modbus_message.data[5];
+
+				// check if value ON or OFF
+				if(coil_value == 0xFF00) { // coil ON
+					COIL[start_addr] = 1;
+				} else if(coil_value == 0x00) { // COIL OFF
+					COIL[start_addr] = 0;
+				} else {
+					// todo: handle noise/illegal data
+				}
+
+				// build the response
+				response[0] = received_slave_id;
+				response[1] = 0x05; // function code
+				response[2] = modbus_message.data[2];
+				response[3] = modbus_message.data[3];
+				response[4] = modbus_message.data[4];
+				response[5] = modbus_message.data[5];
+
+				// calculate CRC
+				uint16_t crc = MAX485_calculate_CRC(response, 6);
+				response[6] = crc & 0xFF;
+				response[7] = (crc >> 8) & 0xFF;
+
+				// echo back the same request as response
+
+				uint8_t response_length = 8;
+				// todo: send response (response_buffer, response_length)
+
+			} else if(function_code == ) {  //  WRITE MULTIPLE COILS
+
 			}
 
-
 			vTaskDelay(pdMS_TO_TICKS(5));
+		} else {
+			UART_print("Failed to receive from queue\n");
 		}
+
 	}
 
 }
@@ -571,6 +654,7 @@ void modbus_reply(char* msg, uint16_t length) {
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
 	if(huart->Instance == USART2) { 			  // MAX485 is connected to USART2
+		send_modbus_data_to_UART1("Data arrived on MODBUS\n");
 
 		ModBus_type_t msg;
 		msg.len = Size; 						   // whatever length that has been received
