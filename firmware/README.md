@@ -272,9 +272,13 @@ The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INT
 
 ### Todos/feature list
 1. Add function to check supported MODBUS RTU function codes
-2.
+2. Add function to create MODBUS exceptions for each message received
+3.
 
 
 ## REFERENCES
 1. https://ozeki.hu/p_5876-mobdbus-function-code-1-read-coils.html
-2.
+2. https://www.mesulog.fr/help/modbus/index.html?page=write-single-coil-f05.html
+3. https://www.simplymodbus.ca/FC15.htm
+4. https://www.freertos.org/Documentation/02-Kernel/07-Books-and-manual/01-RTOS_book
+5.

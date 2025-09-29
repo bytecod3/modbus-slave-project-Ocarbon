@@ -46,7 +46,10 @@
 int modbus_rx_len = 0; // actual received modbus message length
 uint8_t modbus_rx_message[MODBUS_MSG_MAX_SIZE] = {0}; // to hold the received modbus message
 
-uint8_t COIL[1] = {0};
+#define COIL_COUNT 100
+uint8_t COIL[COIL_COUNT] = {0}; // this is for debugging - does not follow MODBUS protocol of 1 bit per coil
+
+uint8_t coils[(COIL_COUNT + 7) / 8] = {0}; // MODBUS spec coils -> rounds off to the nearest byte (ceiling method)
 
 /* USER CODE END PD */
 
@@ -571,7 +574,7 @@ void x_task_receive_modbus(void const* argument) {
 					bit_pos++; // next bit position
 
 					if(bit_pos == 8) {
-						resp[index] = coil_byte;
+						response[index] = coil_byte;
 						coil_byte = 0;
 						bit_pos = 0;
 					}
@@ -582,7 +585,7 @@ void x_task_receive_modbus(void const* argument) {
 				response[index++] = crc & 0xFF; // get CRC LOW
 				response[index++] = (crc >> 8) & 0xFF; // get CRC HIGH
 
-				*response_length = index;
+				uint8_t response_length = index;
 
 				// todo: transmit to master
 
@@ -619,7 +622,21 @@ void x_task_receive_modbus(void const* argument) {
 				uint8_t response_length = 8;
 				// todo: send response (response_buffer, response_length)
 
-			} else if(function_code == ) {  //  WRITE MULTIPLE COILS
+			} else if(function_code == 0x0F) {  //  WRITE MULTIPLE COILS
+
+				/* extract data from MODBUS packet */
+				uint16_t start = (modbus_message.data[2] << 8) | (modbus_message.data[3]);
+				uint16_t qty = (modbus_message.data[4] << 8) | modbus_message.data[5];
+				uint8_t byte_count = modbus_message.data[6];
+
+				/* update my COIL array from packed request bytes */
+
+				for(uint16_t i = 0; i < qty; i++) {
+					uint16_t byte_index = i / 8;  // depending on number of bytes received
+					uint8_t bit_index = i % 8;   // get bit position
+					uint8_t coil_val = (COIL[byte_index] >> bit_index) & 0x01;  // this sets or clears a bit at that position
+					COIL[start + i] = coil_val; // here, I update the coil byte with the hnew written value
+				}
 
 			}
 
