@@ -67,12 +67,18 @@ UART_HandleTypeDef huart2;
 
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
+osThreadId x_task_receive_modbus_handle;
+osThreadId x_task_relay_control_handle;
+osThreadId x_task_ethernet_control_handle;
 osThreadId x_task_get_device_diagnostics_handle;
 osThreadId x_task_print_to_terminal_handle;
-osThreadId x_task_receive_modbus_handle;
+
 
 //============ DATA QUEUE HANDLES  ============
 QueueHandle_t modbus_queue_handle;
+
+// =========== SEMPAHORE HANDLES ===============
+SemaphoreHandle_t x_relay_control_semaphore;
 
 
 // diagnostics variable
@@ -132,9 +138,12 @@ void modbus_reply(char* msg, uint16_t length);
  * Task prototypes
  *
  */
+void x_task_receive_modbus(void const* argument);
+void x_task_relay_control(void const* argument);
+void x_task_ethernet_control(void const* argument);
 void x_task_get_device_diagnostics(void const* argument);
 void x_task_print_to_terminal(void const* argument);
-void x_task_receive_modbus(void const* argument);
+
 
 /* USER CODE END PFP */
 
@@ -217,6 +226,9 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+
+  x_relay_control_semaphore = xSempahoreCreateBinary();
+
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -252,10 +264,14 @@ int main(void)
   osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 128); // task to print to UART if using UART debug
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
 
-
   osThreadDef(receive_modbus, x_task_receive_modbus, osPriorityNormal , 0, 2048); // task to receive MODBUS data
   x_task_receive_modbus_handle = osThreadCreate(osThread(receive_modbus), NULL);
 
+  osThreadDef(control_relay, x_task_relay_control, osPriorityNormal , 0, 1024); // task to control relays
+  x_task_relay_control_handle = osThreadCreate(osThread(control_relay), NULL);
+
+  osThreadDef(ethernet_control, x_task_ethernet_control, osPriorityNormal , 0, 1024); // task to control ethernet communicattion
+  x_task_ethernet_control_handle = osThreadCreate(osThread(ethernet_control), NULL);
 
 
   // todo -> check successful task creation
@@ -504,6 +520,7 @@ void x_task_get_device_diagnostics(void const* args) {
 				diagnostics.minimum_ever_free_heap_size
 		);
 
+
 		vTaskDelay(pdMS_TO_TICKS(10));
 
 	}
@@ -695,13 +712,15 @@ void x_task_receive_modbus(void const* argument) {
 				uint8_t byte_count = modbus_message.data[6];
 
 				/* update my COIL array from packed request bytes */
-
 				for(uint16_t i = 0; i < qty; i++) {
 					uint16_t byte_index = i / 8;  // depending on number of bytes received
 					uint8_t bit_index = i % 8;   // get bit position
 					uint8_t coil_val = (COIL[byte_index] >> bit_index) & 0x01;  // this sets or clears a bit at that position
 					COIL[start + i] = coil_val; // here, I update the coil byte with the hnew written value
 				}
+
+				/* release semaphore here to notify the relay control task that we are done updating coils */
+
 
 			}
 
@@ -728,6 +747,26 @@ void modbus_reply(char* msg, uint16_t length) {
 
 	// enable receive
 	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_RESET);
+}
+
+/**
+ * @brief This task controls the relays
+ */
+void x_task_relay_control(void const* arguments) {
+	for(;;) {
+		// if can take sempahore,
+		// HAL write relay banks
+		//give semaphore
+	}
+}
+
+/**
+ * @brief This task controls ethernet communication
+ */
+void x_task_ethernet_control(void const* argument) {
+	for(;;) {
+
+	}
 }
 
 

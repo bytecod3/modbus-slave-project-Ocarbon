@@ -242,11 +242,15 @@ Using the hardware I had namely:
 - MAX485 modules
 - STM32F401CCU6
 
-I could transmit from one STM32 (MASTER ) to the slave devive. THis is my breadboard setup:
+I could transmit from one STM32 (MASTER ) to the slave devive. This is my breadboard setup:
 
 ![](../images/master-slave-bread.jpeg) -> SMT32 MASTER-SLAVE MAX485 SETUP
 
 However, to test real MODBUS RTU packets, I used QMODMASTER simulator on my PC to simulate the master packets. The following scrennshots show that master commands are being identified.This was the first handshake between master(My PC) and the STM32 slave device.
+
+The following is the setup I used:
+
+![](../images/modbus-sim.png)
 
 ##### Read coils
 ---
@@ -270,20 +274,33 @@ I simulated the read coils function and the following was the response:
 
 ![](../images/read-coil-response.png)
 
-I had a dummy coil as shown here:
+I had a dummy coil data as shown here, (ideally these should be set and reset with relays):
 
 ```c
 uint8_t coils[(COIL_COUNT + 7) / 8] = {0x4D, 0x0D};
 ```
 
-My read coils function is simulated correctly and the expected response was received.
+My read coils function is simulated correctly and the expected response was received. This demonstrates interoperability with a MODBUS simulator.
 
-## 3. RTOS tasks
-These tasks are shared among the slave and master devices:
-- x_device_get_diagnostics
 
-##### x_device_get_diagnostics task
-This task is used to collect general board/device data
+# ETHERNET CONNECTIVITY
+TO add ethernet connectivity, I had to use an external PHY chip because STM32F401CCU6 does not have an internal ethernet PHY ability. The block diagram below shows the flow diagram of Ethernet in hardware.
+
+To increase reliabilty on the ETHERNET port, I used an RJ45 connector with integrated magnetics. This does not include impedance matching as an external circuit. THey are designed to provide correct impedance (100 R differential), for ethernet, as well as suppress common mode noise.
+
+THe circuit below shows my circuit excerpt for Ethernet Functionality:
+
+[insert ethernet circuit]
+
+# RTOS INTEGRATION
+For concurrence management, the following tasks were defined at a minimum:
+    - relay control task
+    - MODBUS RTU task
+    - Ethernet communication task
+    - System monitoring task
+
+##### System monitoring task( x_device_get_diagnostics task)
+This task is used to collect general board/device data, and monitor the system parameters.
 
 The data that I collect is:
     - chip ID
@@ -299,12 +316,21 @@ The data that I collect is:
 
 The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INTERNAL_PARAMETERS``` to 0 in the ```custom_config.h``` file.
 
+[add code]
 
 
 ### Priority table and logic behind it
 
 #### Interrupt vector Priority
 Priority must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (often 5).
+
+
+# TESTING AND VALIDATION PLAN
+
+### Stress test plan
+TO stess this board, I would go with Uptime calculation. This is outlined below:
+1. After compiling and tesing code locally. Code is uploaded to electrically tested PCBs.
+2. The system start time is logged manually. Also, the system start time is logged onboard the device. The system maintains a
 
 
 ### Todos/feature list
