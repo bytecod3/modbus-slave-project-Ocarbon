@@ -304,7 +304,7 @@ To increase reliabilty on the ETHERNET port, I used an RJ45 connector with integ
 
 The circuit below shows my circuit excerpt for Ethernet Functionality:
 
-![](../schematic-excerpts/ethernet-schematic.png)
+![](../schematic-excepts/ethernet-schematic.png)
 
 W5500 chip will be an SPI slave to the MCU controller. 
 
