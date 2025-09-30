@@ -294,7 +294,7 @@ The block diagram below explains this part:
 
 ![](../images/modbus-tcp-block.png)
 
-SInce the slave device exposes a direct Ethernet connectino, it can be directly connected to a Netwirk switch then routed to diagnostics tool etc. 
+Since the slave device exposes a direct Ethernet connectino, it can be directly connected to a Network switch then routed to diagnostics tool etc. 
 
 Additionally, a MODBUS-RTU to MODBUS-ETHERNET converter can be used to 
 
@@ -304,7 +304,7 @@ To increase reliabilty on the ETHERNET port, I used an RJ45 connector with integ
 
 The circuit below shows my circuit excerpt for Ethernet Functionality:
 
-![](../schematics-excerpts/ethernet-schematic.png)
+![](../schematic-excerpts/ethernet-schematic.png)
 
 W5500 chip will be an SPI slave to the MCU controller. 
 
