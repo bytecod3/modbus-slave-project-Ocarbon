@@ -33,7 +33,7 @@ int main() {
 		0x00,
 		0x00,
 		0x00,
-		0x08,
+		0x02,
 		0x00, //placeholder for CRC LO
 		0x00, //placeholder for CRC HI
 	};

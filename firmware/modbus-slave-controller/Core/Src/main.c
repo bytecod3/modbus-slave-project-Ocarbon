@@ -50,7 +50,7 @@ char uart_buff[10] = {0}; // for debug
 #define COIL_COUNT 100
 uint8_t COIL[COIL_COUNT] = {0}; // this is for debugging - does not follow MODBUS protocol of 1 bit per coil
 
-uint8_t coils[(COIL_COUNT + 7) / 8] = {0}; // MODBUS spec coils -> rounds off to the nearest byte (ceiling method)
+uint8_t coils[(COIL_COUNT + 7) / 8] = {0x4D, 0x0D}; // MODBUS spec coils -> rounds off to the nearest byte (ceiling method)
 
 /* USER CODE END PD */
 
@@ -94,6 +94,18 @@ void StartDefaultTask(void const * argument);
 /**
  * ====================== Function prototypes ===========================
  */
+
+#ifdef __GNUC__
+  int __io_putchar(int ch) {
+      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+      return ch;
+  }
+#else
+  int fputc(int ch, FILE *f) {
+      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+      return ch;
+  }
+#endif
 
 /**
  * @brief Function to print to console
@@ -518,7 +530,7 @@ void x_task_print_to_terminal(void const* arguments ) {
  */
 void send_modbus_data_to_UART1(char* msg) {
 	// enable transmit
-	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(  (char*) msg), 500);
+	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(  (char*) msg), HAL_MAX_DELAY); // check delay time in prod code
 
 }
 
@@ -594,14 +606,18 @@ void x_task_receive_modbus(void const* argument) {
 				uint8_t bit_pos = 0;
 
 				for(uint16_t i = 0; i < qty; i++) {
-					if(COIL[start + i]) {
+
+					/* get the actual coil value - bit extraction*/
+					uint8_t coil_val = (coils[(start + i) / 8] >>  ( (start + i) %8)) & 0x01;
+
+					if(coil_val) {
 						coil_byte |= (1 << bit_pos); // if coil is 1, set the bit at that position
 					}
 
 					bit_pos++; // next bit position
 
-					if(bit_pos == 8) {
-						response[index] = coil_byte;
+					if(bit_pos == 8 || i == qty - 1) {
+						response[index++] = coil_byte;
 						coil_byte = 0;
 						bit_pos = 0;
 					}
@@ -614,8 +630,25 @@ void x_task_receive_modbus(void const* argument) {
 
 				uint8_t response_length = index;
 
+				send_modbus_data_to_UART1(response);
+
+				printf("Received REQUEST\r\n");
+				for(uint16_t i=0; i < modbus_message.len; i++) {
+					printf("%02X ", modbus_message.data[i]);
+				}
+
+				printf("\r\n");
+
+				printf("Computed response\r\n");
+				for(uint16_t i=0; i < response_length; i++) {
+					printf("%02X ", response[i]);
+				}
+
+				printf("\r\n");
+
 				// todo: transmit to master
 				MODBUS_send_response(response, response_length);
+				MODBUS_send_response(modbus_message.data, modbus_message.len); // loopback test
 
 			} else if (function_code == 0x05) {   /* WRITE SINGLE COIL */
 

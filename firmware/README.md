@@ -263,6 +263,21 @@ However, to test real MODBUS RTU packets, I used QMODMASTER simulator on my PC t
 ![](../images/qmod-write-single.png) -> QMODMASTER SIMULATOR
 ![](../images/com-write-single.png) -> SERIAL OUTPUT
 
+
+### SIMULATION WITH QMODMASTER
+#### Read coils
+I simulated the read coils function and the following was the response:
+
+![](../images/read-coil-response.png)
+
+I had a dummy coil as shown here:
+
+```c
+uint8_t coils[(COIL_COUNT + 7) / 8] = {0x4D, 0x0D};
+```
+
+My read coils function is simulated correctly and the expected response was received.
+
 ## 3. RTOS tasks
 These tasks are shared among the slave and master devices:
 - x_device_get_diagnostics
