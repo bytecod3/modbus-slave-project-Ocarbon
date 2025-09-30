@@ -234,15 +234,34 @@ This functions implements the (0x01) function code to read a single coil
 h) write single coil
 This function implements the (0x05) function code to write single coil
 
-
 i) write multiple coils
 This function implements the (0x0F) function code to write to multiple coils
 
-
 ## 3. Testing and Validation
-I have tested most of this code with actual hardware. The following tests have been carried out and confirmed:
-    - MCP23
+Using the hardware I had namely:
+- MAX485 modules
+- STM32F401CCU6
 
+I could transmit from one STM32 (MASTER ) to the slave devive. THis is my breadboard setup:
+
+![](../images/master-slave-bread.png) -> SMT32 MASTER-SLAVE MAX485 SETUP
+
+However, to test real MODBUS RTU packets, I used QMODMASTER simulator on my PC to simulate the master packets. The following scrennshots show that master commands are being identified.This was the first handshake between master(My PC) and the STM32 slave device.
+
+##### Read coils
+---
+![](../images/qmod-read-coil.png) -> QMODMASTER SIMULATOR
+![](../images/com-read-coil.png) -> SERIAL OUTPUT
+
+##### Write multiple coils
+---
+![](../images/qmod-write-multiple.png) -> QMODMASTER SIMULATOR
+![](../images/cute-write-multiple.png) -> SERIAL OUTPUT
+
+##### Write single coil
+---
+![](../images/qmod-write-single.png) -> QMODMASTER SIMULATOR
+![](../images/com-write-single.png) -> SERIAL OUTPUT
 
 ## 3. RTOS tasks
 These tasks are shared among the slave and master devices:

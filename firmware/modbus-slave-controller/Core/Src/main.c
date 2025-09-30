@@ -539,7 +539,7 @@ void x_task_receive_modbus(void const* argument) {
 	//HAL_UARTEx_ReceiveToIdle_IT(&huart2, modbus_rx_message, MODBUS_MSG_MAX_SIZE);
 
 	for(;;) {
-		send_modbus_data_to_UART1("In receive modbus data task\n");
+		//send_modbus_data_to_UART1("In receive modbus data task\n");
 		// todo: use queue PEEK
 		if(xQueueReceive(modbus_queue_handle, &modbus_message, 1000) == pdTRUE) {
 			send_modbus_data_to_UART1("RECEIVED MASTER REQUEST OK\n");
@@ -576,7 +576,7 @@ void x_task_receive_modbus(void const* argument) {
 				// sample packet structure for read coils request is as follows
 				// [addr][func=0x01][addr_hi][addr_lo][qty_hi][qty_lo][crc_lo][crc_hi]
 				//MAX_485_read_coils_handler();
-				HAL_UART_Transmit(&huart1, (uint8_t*) "READ COILS FUNCTION CODE\r\n", strlen("READ COILS FUNCTION CODE\r\n"), HAL_MAX_DELAY);
+				HAL_UART_Transmit(&huart1, (uint8_t*) "READ COILS\r\n", strlen("READ COILS \r\n"), HAL_MAX_DELAY);
 
 				uint16_t start = (modbus_message.data[2] << 8) | (modbus_message.data[3]); // what coil to start from
 				uint16_t qty = (modbus_message.data[4] << 8) | (modbus_message.data[5]);
@@ -619,6 +619,8 @@ void x_task_receive_modbus(void const* argument) {
 
 			} else if (function_code == 0x05) {   /* WRITE SINGLE COIL */
 
+				HAL_UART_Transmit(&huart1, (uint8_t*) "WRITE SINGLE COIL\r\n", strlen("WRITE SINGLE COIL\r\n"), HAL_MAX_DELAY);
+
 				// get the starting coil address
 				uint16_t start_addr = (modbus_message.data[2] << 8) | modbus_message.data[3];
 				uint16_t coil_value = (modbus_message.data[4] << 8) | modbus_message.data[5];
@@ -652,6 +654,8 @@ void x_task_receive_modbus(void const* argument) {
 
 			} else if(function_code == 0x0F) {  //  WRITE MULTIPLE COILS
 
+				HAL_UART_Transmit(&huart1, (uint8_t*) "WRITE MULTIPLE COILS\r\n", strlen("WRITE MULTIPLE COILS\r\n"), HAL_MAX_DELAY);
+
 				/* extract data from MODBUS packet */
 				uint16_t start = (modbus_message.data[2] << 8) | (modbus_message.data[3]);
 				uint16_t qty = (modbus_message.data[4] << 8) | modbus_message.data[5];
@@ -670,7 +674,8 @@ void x_task_receive_modbus(void const* argument) {
 
 			vTaskDelay(pdMS_TO_TICKS(5));
 		} else {
-			UART_print("Failed to receive from queue\n");
+			//UART_print("Failed to receive from queue\n");
+			// todo: log error count
 		}
 
 	}

@@ -10,8 +10,8 @@
 ../Core/Src/main.c:519:6:send_modbus_data_to_UART1	1
 ../Core/Src/main.c:525:6:MODBUS_send_response	1
 ../Core/Src/main.c:534:6:x_task_receive_modbus	16
-../Core/Src/main.c:685:6:modbus_reply	1
-../Core/Src/main.c:699:6:HAL_UARTEx_RxEventCallback	3
-../Core/Src/main.c:734:6:StartDefaultTask	1
-../Core/Src/main.c:754:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:772:6:Error_Handler	1
+../Core/Src/main.c:690:6:modbus_reply	1
+../Core/Src/main.c:704:6:HAL_UARTEx_RxEventCallback	3
+../Core/Src/main.c:739:6:StartDefaultTask	1
+../Core/Src/main.c:759:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:777:6:Error_Handler	1
