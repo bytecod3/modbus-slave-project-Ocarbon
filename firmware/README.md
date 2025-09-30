@@ -284,13 +284,31 @@ My read coils function is simulated correctly and the expected response was rece
 
 
 # ETHERNET CONNECTIVITY
-TO add ethernet connectivity, I had to use an external PHY chip because STM32F401CCU6 does not have an internal ethernet PHY ability. The block diagram below shows the flow diagram of Ethernet in hardware.
+The purpose of ethenet in this slave is to allow the slave device to communicate over an network using MODBUS TCP. This allows the MODBUS slave to be part of a local area network. 
+
+MODBUS TCP wraps the MODBUS protocol in TCP/IP packets. The slave device listens on a TCP port( typically 502) and responds to requests from a MODBUS TCP master. 
+
+Ethernet is therefore the physical medium that carries these TCP/IP packets.
+
+The block diagram below explains this part:
+
+![](../images/modbus-tcp-block.png)
+
+SInce the slave device exposes a direct Ethernet connectino, it can be directly connected to a Netwirk switch then routed to diagnostics tool etc. 
+
+Additionally, a MODBUS-RTU to MODBUS-ETHERNET converter can be used to 
+
+To add ethernet connectivity, I had to use an external PHY chip because STM32F401CCU6 does not have an internal ethernet PHY ability. The block diagram below shows the flow diagram of Ethernet in hardware.
 
 To increase reliabilty on the ETHERNET port, I used an RJ45 connector with integrated magnetics. This does not include impedance matching as an external circuit. THey are designed to provide correct impedance (100 R differential), for ethernet, as well as suppress common mode noise.
 
-THe circuit below shows my circuit excerpt for Ethernet Functionality:
+The circuit below shows my circuit excerpt for Ethernet Functionality:
 
-[insert ethernet circuit]
+![](../schematics-excerpts/ethernet-schematic.png)
+
+W5500 chip will be an SPI slave to the MCU controller. 
+
+
 
 # RTOS INTEGRATION
 For concurrence management, the following tasks were defined at a minimum:
@@ -347,3 +365,6 @@ TO stess this board, I would go with Uptime calculation. This is outlined below:
 5. https://scadasploit.dev/posts/2021/07/hacking-modbus-tcp-simulation-in-linux/
 6. https://www.modbustools.com/modbus.html
 7. https://camatsystem.com/wp-content/uploads/2015/12/Modbus-manual-TD80.pdf
+8. https://www.ti.com/lit/pdf/SLLA200
+9. https://www.ti.com/lit/pdf/slla272
+10. https://www.renesas.com/en/document/apn/rs-485-design-guide-application-note?srsltid=AfmBOor6p2BFd9VdtI_gGdi3hIQGQOprWQwYm5Tu_feED4Yjchga8hdf
