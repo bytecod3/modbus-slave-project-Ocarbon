@@ -1,7 +1,21 @@
-# Firmware Documentation
+# Documentation
 ![Static Badge](https://img.shields.io/badge/version-v1-orange)
 ![Static Badge](https://img.shields.io/badge/status-development-green)
 
+## Table of Contents 
+1. Introduction 
+2. Functional requirements 
+3. Relay control 
+4. Industry standard relay control interface and schematic
+5. Relay control logical organization 
+6. IO expander driver 
+7. Relay driver interface 
+8. Relay control abstraction levels
+9. Scalability of the relay controls
+10. Relay Testing and validation
+11. 
+12. 
+13.
 
 ### Introduction
 Based on the problem statement, this device is a slave device because it implements slave functions especially the MODBUS register read and write. i.e:
@@ -13,7 +27,7 @@ Also, I figured that because it has relays, these relay are to be controlled by 
 
 Also this slave exposes its port/URL via ethernet. So data can be transferred, logged etc..
 
-## Functional Requirement
+## Functional Requirements
 # 1.Relay Control
 
 ## Industry standard relay control  hardware 
@@ -48,7 +62,7 @@ To organize 32 relays logically, and to remain simple, I used bit groups. Each r
 
 These are defined in ```relay.h``` file. Since there are 32 relays to be controlled, I use an expander via i2c for this function.
 
-#### Expander driver
+#### IO Expander driver
 The driver I use is the MCP23017. I choose it because it has 16 bit outputs whcih means I only need 2 expanders to handle 32 relays.
 I wrote a basic driver for the needed fucntions of interfacing the RELAY to the STM32. Some of these fucntions are:
 
