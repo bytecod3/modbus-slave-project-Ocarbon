@@ -92,7 +92,28 @@ However, for Relay control, PLC ladder logic is used for industrial setting. How
 [todo]
 
 
-## 2. MODBUS RTU
+# 2. MODBUS RTU
+
+### RS485 Hardware
+To include RS485 transceiver hardware interface, I used MAX485 IC and designed its typical circuit. This can be used for both master and slave, difference being the termination. 
+
+What is included in this circuit excerpt:
+- MAX485 transceiver IC
+- COmmon mode choke for high frequency noise 
+- TVS for transient suppression 
+- Low ohm series resistors for ringing/reflection suppression
+- 120R Termination resistor ON/OFF control
+
+![](../schmatic-excerpts/RS485.png)
+
+#### Improvement
+Based on my experience, RS485 is a pretty robust standard and the tranceivers handle most of the noise/suppression for differential signals. However, for maximum reliability, the following can be added: 
+
+- Add MOV for to line A and B just next to the connector so high V transients are caught fast. 
+- Provide galvanic isolation between the MCU and the RX/TX/DI signals to properly isolate the MCU and other circuit components on this line.
+
+
+### RS485 Driver
 This section will describe how I designed for MODBUS RTU.
 MODBUS consists of a slave and a master. The master sends requests to slave and the slave responds back with the requested data. The list below shows the function codes that can be used under MODBUS:
 
