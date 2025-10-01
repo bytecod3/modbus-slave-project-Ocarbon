@@ -104,7 +104,7 @@ What is included in this circuit excerpt:
 - Low ohm series resistors for ringing/reflection suppression
 - 120R Termination resistor ON/OFF control
 
-![](../schmatic-excerpts/RS485.png)
+![](../schematic-excerpts/RS485.png)
 
 #### Improvement
 Based on my experience, RS485 is a pretty robust standard and the tranceivers handle most of the noise/suppression for differential signals. However, for maximum reliability, the following can be added: 
