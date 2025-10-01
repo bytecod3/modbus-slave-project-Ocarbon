@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.1.2 Chrome/138.0.7204.243 Electron/37.4.0 Safari/537.36" version="28.1.2">
   <diagram name="Page-1" id="qVBf4ytGXyiiigOJwBOO">
-    <mxGraphModel dx="2435" dy="2065" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="2192" dy="1917" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -288,9 +288,6 @@
         <mxCell id="obDxmq-06BP92X0a6dG_-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="obDxmq-06BP92X0a6dG_-4" target="obDxmq-06BP92X0a6dG_-8">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="obDxmq-06BP92X0a6dG_-4" value="MODBUS-TCP -MODBUS-TCP converter" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="-600" y="1410" width="110" height="120" as="geometry" />
-        </mxCell>
         <mxCell id="obDxmq-06BP92X0a6dG_-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="obDxmq-06BP92X0a6dG_-8" target="obDxmq-06BP92X0a6dG_-10">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -365,7 +362,10 @@
           <mxGeometry x="-475" y="1300" width="90" height="30" as="geometry" />
         </mxCell>
         <mxCell id="obDxmq-06BP92X0a6dG_-28" value="MODBUS TCP Block Diagram&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;html=1;fontSize=24;fontStyle=1;verticalAlign=middle;align=center;" vertex="1" parent="1">
-          <mxGeometry x="-485" y="1160" width="100" height="40" as="geometry" />
+          <mxGeometry x="-490" y="1170" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="obDxmq-06BP92X0a6dG_-4" value="MODBUS-TCP -MODBUS-TCP converter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="-600" y="1410" width="110" height="120" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

@@ -14,7 +14,27 @@ Also, I figured that because it has relays, these relay are to be controlled by 
 Also this slave exposes its port/URL via ethernet. So data can be transferred, logged etc..
 
 ## Functional Requirement
-## 1.Relay Control
+# 1.Relay Control
+
+## Industry standard relay control  hardware 
+To meet the industry standard safety requirement, I made a heavy reference to IEC 60947 that defines control of high voltage switchgear (RCBs, Relays, contactors) etc. (Link in the references)
+
+Although much of it is implemented when laying out the PCB (e.g creepage distances), here is a list of what I implemented in this relay control circuit: 
+1. Isolation using optocouplers 
+2. Flyback and surge suppression using flyback diodes, RC snubber and TVS clampers
+5. Fault detection
+
+This circuit is designed to be compatible with PLC-RSC-24DC/21 relay module that has the following features:
+- Screw connection 
+- DIN rail mount NS 35/7, 5, 1
+- 1 changeover contact 
+- Input voltage 24V
+- Rated insulation voltage 250V
+- MAX power disspation 
+- Overvoltage category III
+
+![](../schematic-excerpts/relay-control.png)
+
 
 ### Relay logical organization
 To organize 32 relays logically, and to remain simple, I used bit groups. Each relay bank is a uint8_t type, where each relay is represented by a single bit in that uint8_t type.
@@ -29,7 +49,7 @@ To organize 32 relays logically, and to remain simple, I used bit groups. Each r
 These are defined in ```relay.h``` file. Since there are 32 relays to be controlled, I use an expander via i2c for this function.
 
 #### Expander driver
-THe driver I use is the MCP23017. I choose it because it has 16 bit outputs whcih means I only need 2 expanders to handle 32 relays.
+The driver I use is the MCP23017. I choose it because it has 16 bit outputs whcih means I only need 2 expanders to handle 32 relays.
 I wrote a basic driver for the needed fucntions of interfacing the RELAY to the STM32. Some of these fucntions are:
 
 ```c
@@ -367,7 +387,7 @@ Priority must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (of
 # TESTING AND VALIDATION PLAN
 
 ### Stress test plan
-TO stess this board, I would go with Uptime calculation. This is outlined below:
+To stess this board, I would go with Uptime calculation. This is outlined below:
 1. After compiling and tesing code locally. Code is uploaded to electrically tested PCBs.
 2. The system start time is logged manually. Also, the system start time is logged onboard the device. The system maintains a
 
@@ -389,3 +409,5 @@ TO stess this board, I would go with Uptime calculation. This is outlined below:
 8. https://www.ti.com/lit/pdf/SLLA200
 9. https://www.ti.com/lit/pdf/slla272
 10. https://www.renesas.com/en/document/apn/rs-485-design-guide-application-note?srsltid=AfmBOor6p2BFd9VdtI_gGdi3hIQGQOprWQwYm5Tu_feED4Yjchga8hdf
+11. https://law.resource.org/pub/in/bis/S05/is.iec.60947.1.2007.pdf
+12. https://www.phoenixcontact.com/en-pc/products/relay-module-plc-rsc-24dc-21-2966171
