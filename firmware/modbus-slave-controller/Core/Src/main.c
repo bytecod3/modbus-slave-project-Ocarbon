@@ -68,10 +68,12 @@ UART_HandleTypeDef huart2;
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 osThreadId x_task_receive_modbus_handle;
+osThreadId x_task_receive_modbus_TCP_handle;
 osThreadId x_task_relay_control_handle;
 osThreadId x_task_ethernet_control_handle;
 osThreadId x_task_get_device_diagnostics_handle;
 osThreadId x_task_print_to_terminal_handle;
+osThreadId x_task_clean_modbus_RTU_queue_handle;
 
 
 //============ DATA QUEUE HANDLES  ============
@@ -80,6 +82,11 @@ QueueHandle_t modbus_queue_handle;
 // =========== SEMPAHORE HANDLES ===============
 SemaphoreHandle_t x_relay_control_semaphore;
 
+// ============ EVENT GROUPS =================
+#define RECEIVE_MODBUS_BIT		(1 << 0UL)		// bit set if MODBUS RTU received from MODBUS_RTU queue
+#define PRINT_TO_TERMINAL_BIT	(1 << 1UL)		// bit set if Print to terminal task received from MODBUS_RTU queque
+
+EventGroupHandle_t modbus_event_group_handle;
 
 // diagnostics variable
 diagnostics_type_t diagnostics;
@@ -139,6 +146,7 @@ void modbus_reply(char* msg, uint16_t length);
  *
  */
 void x_task_receive_modbus(void const* argument);
+void x_task_receive_modbus_TCP(void const* argument);
 void x_task_relay_control(void const* argument);
 void x_task_ethernet_control(void const* argument);
 void x_task_get_device_diagnostics(void const* argument);
@@ -261,11 +269,15 @@ int main(void)
   osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
   x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
 
+  osThreadDef(receive_modbus, x_task_receive_modbus, osPriorityNormal , 0, 2048); // task to receive MODBUS data
+  x_task_receive_modbus_handle = osThreadCreate(osThread(receive_modbus), NULL);
+
+  osThreadDef(receive_modbus_TCP, x_task_receive_modbus_TCP, osPriorityIdle + 3, 0, 128); // task to receive data via MODBUS TCP
+  x_task_receive_modbus_TCP_handle = osThreadCreate(osThread(receive_modbus_TCP), NULL);
+
   osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 128); // task to print to UART if using UART debug
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
 
-  osThreadDef(receive_modbus, x_task_receive_modbus, osPriorityNormal , 0, 2048); // task to receive MODBUS data
-  x_task_receive_modbus_handle = osThreadCreate(osThread(receive_modbus), NULL);
 
   osThreadDef(control_relay, x_task_relay_control, osPriorityNormal , 0, 1024); // task to control relays
   x_task_relay_control_handle = osThreadCreate(osThread(control_relay), NULL);
@@ -599,6 +611,7 @@ void x_task_receive_modbus(void const* argument) {
 
 			// todo: check for supported functions
 
+
 			// Here I handle supported functions
 			if(function_code == 0x01) { // READ COILS  todo: put this into its own functions
 
@@ -734,6 +747,17 @@ void x_task_receive_modbus(void const* argument) {
 
 }
 
+/**
+ * @brief This task receives MODBUS data via MODBUS TCP
+ */
+
+void x_task_receive_modbus_TCP(void const* arguments) {
+
+	for(;;) {
+		// get the MODBUS HEADER
+	}
+}
+
 
 
 /**
@@ -742,7 +766,7 @@ void x_task_receive_modbus(void const* argument) {
 void modbus_reply(char* msg, uint16_t length) {
 	HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_SET);
 
-	// send adta
+	// send data
 	HAL_UART_Transmit(&huart2, modbus_rx_message, strlen((char*)modbus_rx_message), 500);
 
 	// enable receive
@@ -764,6 +788,12 @@ void x_task_relay_control(void const* arguments) {
  * @brief This task controls ethernet communication
  */
 void x_task_ethernet_control(void const* argument) {
+	for(;;) {
+
+	}
+}
+
+void x_task_clean_modbus_RTU_queue(void const* argument) {
 	for(;;) {
 
 	}

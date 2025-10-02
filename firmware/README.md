@@ -2,6 +2,10 @@
 ![Static Badge](https://img.shields.io/badge/version-v1-orange)
 ![Static Badge](https://img.shields.io/badge/status-development-green)
 
+#### Details 
+Prepared by: Edwin Mwiti
+Submission for: Control and Instrumentation Engineer - Intern
+
 ## Table of Contents 
 1. Introduction 
 2. Functional requirements 
@@ -19,7 +23,7 @@
 14. RS485 Driver
 15. Handling unknown ModBus data length
 16. Compatibity with S7-1200
-17. ModBus tesing and validation with QModMaster
+17. ModBus testing and validation with QModMaster
 18. Ethernet Connectivity
 19. TCP/IP control interface with ModBus TCP
 20. Ethernet stack configuration
@@ -355,22 +359,67 @@ My read coils function is simulated correctly and the expected response was rece
 
 
 # Ethernet Connectivity
-The purpose of ethenet in this slave is to allow the slave device to communicate over an network using MODBUS TCP. This allows the MODBUS slave to be part of a local area network. 
+The purpose of ethernet in this slave is to allow the slave device to communicate over an network using MODBUS TCP. This allows the MODBUS slave to be part of a local area network. 
 
 MODBUS TCP wraps the MODBUS protocol in TCP/IP packets. The slave device listens on a TCP port( typically 502) and responds to requests from a MODBUS TCP master. 
 
-Ethernet is therefore the physical medium that carries these TCP/IP packets.
+Ethernet is majorly part of data link layer but also the physical layer in the OSI Model that carries these TCP/IP packets.
+
+## Ethernet stack configuration
+Two components are of importance here: 
+- MAC layer (Media access controller)
+- PHY layer
+
+MAC handles the data link layer such as framing, addressing and managing ethernet packets.
+
+PHY is an external chip connected to STM32 via RMII or MII interface. I used the popular W5500 PHY chip for this project. It manages the actual electrical signaling, speed negotiation and link detection with the ethernet cable.
+
+MAC and PHY form the complete ethernet interface. Since the MAC is inside the STM32, STM32 is responsible for setting up the MAC interface and configuring pins while PHY handles the physical connectivity to the network. 
 
 The block diagram below explains this part:
 
 ![](../images/modbus-tcp-block.png)
 
-Since the slave device exposes a direct Ethernet connectino, it can be directly connected to a Network switch then routed to diagnostics tool etc. 
+Since the slave device exposes a direct Ethernet connection, it can be directly connected to a Network switch then routed to diagnostics tool etc. 
 
-Additionally, a MODBUS-RTU to MODBUS-ETHERNET converter can be used to 
+Additionally, a MODBUS-RTU to MODBUS-ETHERNET converter can be used to mate MOodBus RTU packets to ModBus TCP packets for use in the diagnostics tool.
 
-To add ethernet connectivity, I had to use an external PHY chip because STM32F401CCU6 does not have an internal ethernet PHY ability. The block diagram below shows the flow diagram of Ethernet in hardware.
+## Ethernet connectivity on STM32
+Since STM32F401CCU6 does not have internal MAC, I switched to STM32F407IEH6 which has internal MAC. This is purely to demonstrate ethernet setup. 
 
+```c
+Note: This ethernet setup and code is untested, I will admit that at this point because I do not have live testing of this ethernet section as I build, it is hard to remain accurate with 100% confidence. However, it should work with minimal modification and/or porting.
+
+```
+
+The steps below show this setup: 
+
+1. Setting up the RMII interface
+I use the RMII interface for interfacing MAC and ethernet PHY chip. 
+
+![](../images/RMII-1.png)
+
+2. The STM32 Board does not allow confiiguring of memory addresses so I skipped this part 
+3. RX buffer length was set to 1524 bytes, default setting. 
+4. The memory is allocated in the SRAM region
+5. MAC address was set to 00:80:E1:00:00:00
+
+### LwIP setup 
+I leveraged the Lightweight IP middleware to setup IP functionality. LwIP provides reduced-resource-usage IP protocols for use in embedded systems. LwIP is available as a middleware in the STM32 stack: 
+
+Settings used  to bring LwIp up are as follows: 
+1. DHCP is disabled so that I can assign a static IP address to my device. The IP address was set to 192.168.0.125
+![](../images/ip-address.png)
+2. Heap memory is allocated to 10KB(10240 Bytes) . If the application will send a lot of data that needs to be copied, this should be set high
+
+![](../images/lwip-setup.png)
+
+3. After this I generated the code.
+
+### Ping Test 
+
+
+### Ethernet schematic excerpt 
 To increase reliabilty on the ETHERNET port, I used an RJ45 connector with integrated magnetics. This does not include impedance matching as an external circuit. THey are designed to provide correct impedance (100 R differential), for ethernet, as well as suppress common mode noise.
 
 The circuit below shows my circuit excerpt for Ethernet Functionality:
@@ -381,7 +430,6 @@ W5500 chip will be an SPI slave to the MCU controller.
 
 ## TCP/IP control interface with ModBus TCP
 
-## Ethernet stack configuration
 
 # Concurrency management with FreeRTOS
 For concurrence management, the following tasks were defined at a minimum:
@@ -410,6 +458,9 @@ The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INT
 [add code]
 
 ##### Task 2: ModBus RTU task
+The code snippet below shows the MODBUS RTU task. 
+
+
 
 ##### Task 3: Ethernet communication task 
 
@@ -421,10 +472,39 @@ The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INT
 Priority must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (often 5).
 
 ### Inter-task communication
+To handle inter-task communication, I mainly used shared queues. For instance for diagnostics task, I created a queue with 5 items that hold a diagnostics data type as shown below: 
 
-### Memory management strategy
+This queue is used in the following two tasks:
+1. Debug to terminal task
+2. Send via ethernet task. 
 
 ### Synchronization methods used 
+One of the typical problems when using shared queues for intertask communication is that you must manage the producers and consumers effectively, otherwise the consuming tasks will see different data points which is not desired. This is due to the fact that when you receive data on a consumer task using ``` xQueueReceive()```, that data point is removed from the queue, so if there is another task receiving this same data, it will receive the next data point, which is a problem.
+
+So I used Event Groups to syncronize the data passing. Event groups allow me to wait until all the tasks have received the data, then I can effectively remove the data from the queue.  
+
+I defined this event group as follows: 
+```c
+EventGroupHandle_t modbus_event_group_handle;
+```
+Now, I figured how many producers and consumers I have for my modbus data. This block diagram shows this: 
+
+
+Then I define a bit mask for each consumer task 
+
+```c
+// ============ EVENT GROUPS =================
+#define RECEIVE_MODBUS_BIT		(1 << 0UL)		// bit set if MODBUS RTU received from MODBUS_RTU queue
+#define PRINT_TO_TERMINAL_BIT	(1 << 1UL)		// bit set if Print to terminal task received from MODBUS_RTU queque
+```
+
+Each task is responsible for only peeking into the queue, without removing data from the queue. After this, is sets the corresponding event bit to notify the event group that it has finished using the data. 
+
+The task named ```x_task_clean_modbus_RTU_queue``` sits waiting for all the consumer tasks that depend on ModBus RTU data to finish receiving the data. After checking all bits are set, it can then effectivley remove this data from queue. 
+By doing this, I am able to basically sync producing tasks and consuming tasks.
+
+
+### Memory management strategy
 
 ### Feedback and diagnostics 
 
@@ -460,3 +540,4 @@ To stess this board, I would go with Uptime calculation. This is outlined below:
 10. https://www.renesas.com/en/document/apn/rs-485-design-guide-application-note?srsltid=AfmBOor6p2BFd9VdtI_gGdi3hIQGQOprWQwYm5Tu_feED4Yjchga8hdf
 11. https://law.resource.org/pub/in/bis/S05/is.iec.60947.1.2007.pdf
 12. https://www.phoenixcontact.com/en-pc/products/relay-module-plc-rsc-24dc-21-2966171
+13. https://controllerstech.com/stm32-ethernet-hardware-cubemx-lwip-ping
