@@ -13,9 +13,30 @@
 8. Relay control abstraction levels
 9. Scalability of the relay controls
 10. Relay Testing and validation
-11. 
-12. 
-13.
+11. ModBuS RTU
+12. RS485 transceiver schematic
+13. RS485 transceiver schematic Improvement
+14. RS485 Driver
+15. Handling unknown ModBus data length
+16. Compatibity with S7-1200
+17. ModBus tesing and validation with QModMaster
+18. Ethernet Connectivity
+19. TCP/IP control interface with ModBus TCP
+20. Ethernet stack configuration
+21. Concurrency management with FreeRTOS
+22. Priority table and logic behind it
+23. Interrupt vector Priority
+24. Inter-task communication
+25. Memory management strategy
+26. Synchronization methods used
+27. Feedback and diagnostics 
+28. Fault detection mechanism 
+29. Onboard fault state indicator
+30. Testing and Validation plan
+31. Stress Testing plan
+32. Additional feature list
+33. References and schemas
+
 
 ### Introduction
 Based on the problem statement, this device is a slave device because it implements slave functions especially the MODBUS register read and write. i.e:
@@ -128,7 +149,7 @@ However, for Relay control, PLC ladder logic is used for industrial setting. How
 
 # 2. MODBUS RTU
 
-### RS485 Hardware
+### RS485 transceiver schematic
 To include RS485 transceiver hardware interface, I used MAX485 IC and designed its typical circuit. This can be used for both master and slave, difference being the termination. 
 
 What is included in this circuit excerpt:
@@ -140,7 +161,7 @@ What is included in this circuit excerpt:
 
 ![](../schematic-excerpts/RS485.png)
 
-#### Improvement
+#### RS485 transceiver schematic Improvement
 Based on my experience, RS485 is a pretty robust standard and the tranceivers handle most of the noise/suppression for differential signals. However, for maximum reliability, the following can be added: 
 
 - Add MOV for to line A and B just next to the connector so high V transients are caught fast. 
@@ -176,40 +197,8 @@ The following is the generic structure of MODBUS RTU packet:
 ```
 
 Therefore depending on the function code being implemented, the data section can vary.
-
-#### 1. Read coils (0x01)
-
-The following is the structure of a MODBUS RTU packet from the master to request for coil data.
-
-```c
-[ Slave Addr ][ 0x01 ][ Start Addr Hi ][ Start Addr Lo ][ Quantity Hi ][ Quantity Lo ][ CRC Lo ][ CRC Hi ]
-
-```
-
-Coils are defined as single-bit values that represent the status of a input/output value. They are boolean variables. For integration with relay control, since the relays are arranged in BANKS, a single BANK May be considered a coil byte, with each bit representing the status of a relay.
-
-
-The master sends request to the slave which then interprets the request to determine which operation it should perfom (read coils, etc)
-
-The following is the structure of the MODBUS RTU packet from the master side:
-
-[insert MODBUS master request packet here]
-
-This means that my device (slave) must intepret these requests and perform the requested function and then respond back to the master with the requested data.
-
-#### Compatibility with S7-1200
-The S7 is going to be the master device that pulls data from MODBUS server, in this case my device is the slace device. TO maintain compatibilty, I made sure this device achieves the following list:
-- Serial setings (BAUD:115200, 8-N-1)
-- Uses standard MODBUS RTU framing
-- confirms the 3.5 char SILENT INTERVAL
-- Responds correctly to function codes
-- Handle MODBUS exceptions correctly
-- Handle slave IDs correctly
-- RE/DE correct control
-- CRC-16 computing
-
-#### MAX485-MODBUS driver
 I wrote a basic driver to handle MODBUS data reception. This STM32 driver was to implement most if not all of the above requirements for S7-1200.
+
 It exposes the following interface:
 
  - MAX485 device init
@@ -222,7 +211,7 @@ It exposes the following interface:
 - Exception handling for MODBUS
 - MODBUS timeout
 
-#### Handling unknown data length
+#### Handling unknown ModBus data length
 For efficiency due to handling a large data packet, I use UART with IDLE LINE DETECTION for data reception. This allows to detect the end of transmission burst (3.5 char SILENT Interval).
 
 Now, from the MODBUS protocol, the maximum packet size is 255 bytes.
@@ -232,7 +221,7 @@ The actual data length is 252 bytes
 
 The data is routed via MAX485 transceiver to handle TTL to RS485 conversion. Then my driver handles this next part which is written to parse/decode the packet:
 
-#### MAX485 driver API
+#### RS485 driver API
 a) Driver initialization
 I initialize MAX485 instance with the ```UART peripheral```, ```GPIO PORT ``` and the ```DE_RE pin```.
 
@@ -285,6 +274,22 @@ This function is used to create a MODBUS exception code
 
 g) read coil
 This functions implements the (0x01) function code to read a single coil
+The following is the structure of a MODBUS RTU packet from the master to request for coil data.
+
+```c
+[ Slave Addr ][ 0x01 ][ Start Addr Hi ][ Start Addr Lo ][ Quantity Hi ][ Quantity Lo ][ CRC Lo ][ CRC Hi ]
+
+```
+
+Coils are defined as single-bit values that represent the status of a input/output value. They are boolean variables. For integration with relay control, since the relays are arranged in BANKS, a single BANK May be considered a coil byte, with each bit representing the status of a relay.
+
+The master sends request to the slave which then interprets the request to determine which operation it should perfom (read coils, etc)
+
+The following is the structure of the MODBUS RTU packet from the master side:
+
+[insert MODBUS master request packet here]
+
+This means that my device (slave) must intepret these requests and perform the requested function and then respond back to the master with the requested data.
 
 h) write single coil
 This function implements the (0x05) function code to write single coil
@@ -292,12 +297,23 @@ This function implements the (0x05) function code to write single coil
 i) write multiple coils
 This function implements the (0x0F) function code to write to multiple coils
 
-## 3. Testing and Validation
+## Compatibility with S7-1200
+The S7 is going to be the master device that pulls data from MODBUS server, in this case my device is the slace device. TO maintain compatibilty, I made sure this device achieves the following list:
+- Serial setings (BAUD:115200, 8-N-1)
+- Uses standard MODBUS RTU framing
+- confirms the 3.5 char SILENT INTERVAL
+- Responds correctly to function codes
+- Handle MODBUS exceptions correctly
+- Handle slave IDs correctly
+- RE/DE correct control
+- CRC-16 computing
+
+## ModBus Testing and Validation with QModMaster
 Using the hardware I had namely:
 - MAX485 modules
 - STM32F401CCU6
 
-I could transmit from one STM32 (MASTER ) to the slave devive. This is my breadboard setup:
+I could transmit from one STM32 (MASTER ) to the slave device. This is my breadboard setup:
 
 ![](../images/master-slave-bread.jpeg) -> SMT32 MASTER-SLAVE MAX485 SETUP
 
@@ -323,7 +339,7 @@ The following is the setup I used:
 ![](../images/com-write-single.png) -> SERIAL OUTPUT
 
 
-### SIMULATION WITH QMODMASTER
+
 #### Read coils
 I simulated the read coils function and the following was the response:
 
@@ -338,7 +354,7 @@ uint8_t coils[(COIL_COUNT + 7) / 8] = {0x4D, 0x0D};
 My read coils function is simulated correctly and the expected response was received. This demonstrates interoperability with a MODBUS simulator.
 
 
-# ETHERNET CONNECTIVITY
+# Ethernet Connectivity
 The purpose of ethenet in this slave is to allow the slave device to communicate over an network using MODBUS TCP. This allows the MODBUS slave to be part of a local area network. 
 
 MODBUS TCP wraps the MODBUS protocol in TCP/IP packets. The slave device listens on a TCP port( typically 502) and responds to requests from a MODBUS TCP master. 
@@ -363,16 +379,18 @@ The circuit below shows my circuit excerpt for Ethernet Functionality:
 
 W5500 chip will be an SPI slave to the MCU controller. 
 
+## TCP/IP control interface with ModBus TCP
 
+## Ethernet stack configuration
 
-# RTOS INTEGRATION
+# Concurrency management with FreeRTOS
 For concurrence management, the following tasks were defined at a minimum:
     - relay control task
     - MODBUS RTU task
     - Ethernet communication task
     - System monitoring task
 
-##### System monitoring task( x_device_get_diagnostics task)
+##### Task 1: System monitoring task( x_device_get_diagnostics task)
 This task is used to collect general board/device data, and monitor the system parameters.
 
 The data that I collect is:
@@ -391,14 +409,31 @@ The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INT
 
 [add code]
 
+##### Task 2: ModBus RTU task
+
+##### Task 3: Ethernet communication task 
+
+##### Task 4: System monitoring task
 
 ### Priority table and logic behind it
 
 #### Interrupt vector Priority
 Priority must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (often 5).
 
+### Inter-task communication
 
-# TESTING AND VALIDATION PLAN
+### Memory management strategy
+
+### Synchronization methods used 
+
+### Feedback and diagnostics 
+
+### Fault detection mechanism 
+
+### Onboard fault state indicator
+
+
+# Testing and Validation plan
 
 ### Stress test plan
 To stess this board, I would go with Uptime calculation. This is outlined below:
