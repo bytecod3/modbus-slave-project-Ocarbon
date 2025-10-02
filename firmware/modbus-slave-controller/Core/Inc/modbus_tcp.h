@@ -12,10 +12,13 @@
 #include "stm32f4xx_hal.h"
 #include "defines.h"
 
+/**
+ * Type to hold modbus TCP packet
+ */
 typedef struct _modbus_tcp_packet {
 	uint16_t len;
-	uint16_t data[MODBUS_TCP_MAX_SIZE]
-} Modbus_tcp_type_t ;
+	uint8_t data[MODBUS_TCP_MAX_SIZE];
+} Modbus_tcp_type_t;
 
 
 #endif /* INC_MODBUS_TCP_H_ */

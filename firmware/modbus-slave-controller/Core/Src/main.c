@@ -81,6 +81,7 @@ osThreadId x_task_clean_modbus_RTU_queue_handle;
 
 //============ DATA QUEUE HANDLES  ============
 QueueHandle_t modbus_RTU_queue_handle;
+QueueHandle_t modbus_TCP_queue_handle;
 
 // =========== SEMPAHORE HANDLES ===============
 SemaphoreHandle_t x_relay_control_semaphore;
@@ -257,6 +258,14 @@ int main(void)
   } else {
 	  //UART_print("MODBUS queue failed to create");
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS queue failed to create\r\n", strlen("MODBUS queue failed to create\r\n"), HAL_MAX_DELAY);
+  }
+
+  modbus_TCP_queue_handle = xQueueCreate(5, sizeof(Modbus_tcp_type_t));
+  if(modbus_TCP_queue_handle != NULL) {
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS TCP queue created OK\r\n", strlen("MODBUS TCP queue created OK\r\n"), HAL_MAX_DELAY);
+  } else {
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS TCP queue failed to create\r\n", strlen("MODBUS TCP queue failed to create\r\n"), HAL_MAX_DELAY);
+
   }
 
 
@@ -737,7 +746,6 @@ void x_task_receive_modbus_RTU(void const* argument) {
 
 				/* release semaphore here to notify the relay control task that we are done updating coils */
 
-
 			}
 
 			vTaskDelay(pdMS_TO_TICKS(5));
@@ -755,12 +763,41 @@ void x_task_receive_modbus_RTU(void const* argument) {
  */
 
 void x_task_receive_modbus_TCP(void const* arguments) {
+	Modbus_tcp_type_t modbus_tcp_pkt;
+	uint8_t modbus_tcp_response[MODBUS_TCP_MAX_SIZE];
+	uint16_t response_len;
 
 	for(;;) {
-		// get the MODBUS HEADER
+		// peek from ModBus TCP queue
+		if(xQueuePeek(modbus_TCP_queue_handle, &modbus_tcp_pkt, HAL_MAX_DELAY) == pdPASS) { // todo: remove MAX delay
+
+			if(modbus_tcp_pkt.len < 8) {  // MBAP header(7 bytes) + function(1 byte) is 8 bytes todo: get this length from the function receiving the TCP packet
+				continue;				// ignore and jump to the next iteration of the loop
+			}
+
+			uint16_t transaction_id = (modbus_tcp_pkt[0] << 8) | (modbus_tcp_pkt[1]); ///< MBAP valyes
+			uint16_t protocol_id = (modbus_tcp_pkt[2] << 8) | (modbus_tcp_pkt[3]);
+			uint16_t length_id = (modbus_tcp_pkt[4] << 8) | (modbus_tcp_pkt[5]);
+			uint8_t unit_id = modbus_tcp_pkt[6];
+
+			uint8_t function_code = modbus_tcp_pkt[7];		///< Protocol Data Unit (PDU)
+			uint8_t* modbus_data = &modbus_tcp_pkt[8];
+
+			// get the length of the PDU
+			uint16_t pdu_len = modbus_pkt.len - 7; // MBAP is 7 bytes
+
+			// check and operate on the function code
+
+			// for each function compose response
+
+			// wrap in a TCP header
+
+			// send response via ModBus TCP
+		} else {
+			// todo: error/debug
+		}
 	}
 }
-
 
 
 /**
@@ -781,7 +818,7 @@ void modbus_reply(char* msg, uint16_t length) {
  */
 void x_task_relay_control(void const* arguments) {
 	for(;;) {
-		// if can take sempahore,
+		// if can take semapahore,
 		// HAL write relay banks
 		//give semaphore
 	}
@@ -819,7 +856,6 @@ void x_task_clean_modbus_RTU_queue(void const* argument) {
 	xQueueReceive(modbus_RTU_queue_handle, &modbus_RTU_message, HAL_MAX_DELAY); // todo: use a defined time in prod
 
 }
-
 
 /**
  * @brief Callback called when IDLE is detected or we a re done receiving MODBUS Message
