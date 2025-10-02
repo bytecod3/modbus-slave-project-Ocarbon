@@ -1,5 +1,0 @@
-../Core/Src/max485.c:13:6:MAX485_init	16	static
-../Core/Src/max485.c:20:6:MAX485_enable_transmit	16	static
-../Core/Src/max485.c:26:6:MAX485_enable_receive	16	static
-../Core/Src/max485.c:34:6:MAX485_receive	24	static
-../Core/Src/max485.c:43:10:MAX485_calculate_CRC	24	static

@@ -2,23 +2,22 @@
  * @file max485.h
  * @brief This file declares MODBUS RTU functions
  * @date Sep 26, 2025
- * @author  Edwin
+ * @author Edwin
  */
 
-#ifndef INC_MAX485_H_
-#define INC_MAX485_H_
+#ifndef INC_MODBUS_RTU_H_
+#define INC_MODBUS_RTU_H_
 
 #include "stm32f4xx_hal.h"
+#include "defines.h"
 
-#define MODBUS_MSG_MAX_SIZE 255 // maximum size that can be received via modbus protocol
-#define SLAVE_ID 0x01
 
 /**
  * @brief typedef for MODBUS data
  */
 typedef struct _modbus_packet {
 	uint16_t len;
-	uint8_t data[MODBUS_MSG_MAX_SIZE];
+	uint8_t data[MODBUS_RTU_MAX_SIZE];
 } ModBus_type_t;
 
 // todo: create  pointer typedef
@@ -41,4 +40,4 @@ void MAX485_send(MAX485_instance inst, uint8_t* data, uint16_t len, uint32_t tim
 void MAX485_receive(MAX485_instance inst, uint8_t* data, uint16_t len, uint32_t timeout);
 uint16_t MAX485_calculate_CRC(const uint8_t* buf, uint16_t len);
 
-#endif /* INC_MAX485_H_ */
+#endif /* INC_MODBUS_RTU_H_ */

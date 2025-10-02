@@ -5,7 +5,7 @@
  *      Author: eduh
  */
 
-#include "max485.h"
+#include <modbus_rtu.h>
 
 /**
  * @brief this function initializes the MAX485 instance
@@ -18,7 +18,7 @@ void MAX485_init(MAX485_instance inst, uint8_t pin) {
  * @brief This functions enables the transmit mode on MAX485 IC
  */
 void MAX485_enable_transmit(MAX485_instance inst) {
-	//write 1 on the DE pin
+	// write 1 on the DE pin
 	HAL_GPIO_WritePin(inst->DE_RE_PORT, inst->DE_RE_pin, GPIO_PIN_SET);
 
 }

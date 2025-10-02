@@ -1,0 +1,5 @@
+../Core/Src/modbus_rtu.c:13:6:MAX485_init	1
+../Core/Src/modbus_rtu.c:20:6:MAX485_enable_transmit	1
+../Core/Src/modbus_rtu.c:26:6:MAX485_enable_receive	1
+../Core/Src/modbus_rtu.c:34:6:MAX485_receive	1
+../Core/Src/modbus_rtu.c:43:10:MAX485_calculate_CRC	4

@@ -429,6 +429,18 @@ The circuit below shows my circuit excerpt for Ethernet Functionality:
 W5500 chip will be an SPI slave to the MCU controller. 
 
 ## TCP/IP control interface with ModBus TCP
+The only difference between ModBus RTU and ModBus TCP is that ModBus TCP embeds the standard ModBus frame packet into a TCP frame that looks like the one below: 
+
+![](../images/modbus-tcp-packet.png)
+
+
+My approach to implement the interface to handle ModBus TCP is as follows: 
+1. Receive ModBus packet via ethernet on port 502
+2. Trigger the tcp_receive_callback().
+3. pass payload to ```x_task_modbus_receive_TCP```
+4. process request -> extract function code length etc...
+5. build a reply 
+6. send back reply via ```modbus_TCP_send_response()```
 
 
 # Concurrency management with FreeRTOS
@@ -438,7 +450,7 @@ For concurrence management, the following tasks were defined at a minimum:
     - Ethernet communication task
     - System monitoring task
 
-##### Task 1: System monitoring task( x_device_get_diagnostics task)
+## Task 1: System monitoring task( x_device_get_diagnostics task)
 This task is used to collect general board/device data, and monitor the system parameters.
 
 The data that I collect is:
@@ -457,14 +469,15 @@ The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INT
 
 [add code]
 
-##### Task 2: ModBus RTU task
+## Task 2: ModBus RTU task
 The code snippet below shows the MODBUS RTU task. 
 
+## Task 3: Modbus TCP task
 
 
-##### Task 3: Ethernet communication task 
+## Task 3: Ethernet communication task 
 
-##### Task 4: System monitoring task
+## Task 4: System monitoring task
 
 ### Priority table and logic behind it
 
@@ -497,6 +510,8 @@ Then I define a bit mask for each consumer task
 #define RECEIVE_MODBUS_BIT		(1 << 0UL)		// bit set if MODBUS RTU received from MODBUS_RTU queue
 #define PRINT_TO_TERMINAL_BIT	(1 << 1UL)		// bit set if Print to terminal task received from MODBUS_RTU queque
 ```
+
+
 
 Each task is responsible for only peeking into the queue, without removing data from the queue. After this, is sets the corresponding event bit to notify the event group that it has finished using the data. 
 
@@ -541,3 +556,4 @@ To stess this board, I would go with Uptime calculation. This is outlined below:
 11. https://law.resource.org/pub/in/bis/S05/is.iec.60947.1.2007.pdf
 12. https://www.phoenixcontact.com/en-pc/products/relay-module-plc-rsc-24dc-21-2966171
 13. https://controllerstech.com/stm32-ethernet-hardware-cubemx-lwip-ping
+14. https://www.prosoft-technology.com/kb/assets/intro_modbustcp.pdf
