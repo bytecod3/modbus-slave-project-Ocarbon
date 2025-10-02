@@ -469,10 +469,13 @@
           <mxGeometry x="317.5" y="1650" width="95" height="90" as="geometry" />
         </mxCell>
         <mxCell id="obDxmq-06BP92X0a6dG_-56" value="dequeue item from&amp;nbsp;&lt;div&gt;queue&lt;/div&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="305" y="1770" width="120" height="55" as="geometry" />
+          <mxGeometry x="305" y="1790" width="120" height="55" as="geometry" />
         </mxCell>
         <mxCell id="obDxmq-06BP92X0a6dG_-62" value="xQueuePeek" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;rotation=-90;" vertex="1" parent="1">
           <mxGeometry x="190" y="1385" width="90" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="obDxmq-06BP92X0a6dG_-63" value="xQueueReceive" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;rotation=0;" vertex="1" parent="1">
+          <mxGeometry x="370" y="1740" width="110" height="30" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

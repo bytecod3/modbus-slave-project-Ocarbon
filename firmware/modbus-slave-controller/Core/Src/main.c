@@ -778,7 +778,7 @@ void x_task_receive_modbus_TCP(void const* arguments) {
 			uint16_t transaction_id = (modbus_tcp_pkt[0] << 8) | (modbus_tcp_pkt[1]); ///< MBAP valyes
 			uint16_t protocol_id = (modbus_tcp_pkt[2] << 8) | (modbus_tcp_pkt[3]);
 			uint16_t length_id = (modbus_tcp_pkt[4] << 8) | (modbus_tcp_pkt[5]);
-			uint8_t unit_id = modbus_tcp_pkt[6];
+			uint8_t unit_id = modbus_tcp_pkt[6];  // slave ID
 
 			uint8_t function_code = modbus_tcp_pkt[7];		///< Protocol Data Unit (PDU)
 			uint8_t* modbus_data = &modbus_tcp_pkt[8];
@@ -787,10 +787,23 @@ void x_task_receive_modbus_TCP(void const* arguments) {
 			uint16_t pdu_len = modbus_pkt.len - 7; // MBAP is 7 bytes
 
 			// check and operate on the function code
+			// this is the length of the PDU only
+			response_len = modbus_tcp_handle(function_code, pdu_data, pdu_length, response);
 
-			// for each function compose response
+			// build back the header (7 bytes)
+			modbus_tcp_response[0] = transaction_id >> 8; // hi byte
+			modbus_tcp_response[1] = transaction_id  & 0xFF; // lo byte
+			modbus_tcp_response[2] = 0x00;					// protocol ID is 0 always
+			modbus_tcp_response[3] = 0x00;
+			modbus_tcp_response[4] = (response_len + 1) >> 8;
+			modbus_tcp_response[5] = (response_len + 1) & 0xFF;
+			modbus_tcp_response[6] = unit_id; // slave ID
 
-			// wrap in a TCP header
+			// get the total length of the packet including MBAP header
+			uint16_t total_length = response_len + 7;
+
+			// todo: send back this response to master
+			modbus_tcp_send_response();
 
 			// send response via ModBus TCP
 		} else {

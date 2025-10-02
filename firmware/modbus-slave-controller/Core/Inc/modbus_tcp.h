@@ -20,5 +20,14 @@ typedef struct _modbus_tcp_packet {
 	uint8_t data[MODBUS_TCP_MAX_SIZE];
 } Modbus_tcp_type_t;
 
+/**
+ * @brief This function handles the received modbus PDU tyoe
+ */
+uint16_t modbus_tcp_handle(uint8_t function_code, uint8_t* pdu_data, uint16_t pdu_length, uint8_t* response);
+
+/**
+ * @brief This function responds back to TCP master
+ */
+void modbus_tcp_send_response();
 
 #endif /* INC_MODBUS_TCP_H_ */
