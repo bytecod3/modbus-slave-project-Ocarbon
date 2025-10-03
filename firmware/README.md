@@ -317,11 +317,9 @@ Using the hardware I had namely:
 - MAX485 modules
 - STM32F401CCU6
 
-I could transmit from one STM32 (MASTER ) to the slave device. This is my breadboard setup:
+I could transmit from one STM32 (MASTER ) to the slave device. 
 
-![](../images/master-slave-bread.jpeg) -> SMT32 MASTER-SLAVE MAX485 SETUP
-
-However, to test real MODBUS RTU packets, I used QMODMASTER simulator on my PC to simulate the master packets. The following scrennshots show that master commands are being identified.This was the first handshake between master(My PC) and the STM32 slave device.
+However, to test real MODBUS RTU packets, I used QmodMaster simulator on my PC to simulate the master packets. The following screenshots show that master commands are being identified.This was the first handshake between master(My PC) and the STM32 slave device.
 
 The following is the setup I used:
 

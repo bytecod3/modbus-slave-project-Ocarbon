@@ -29,7 +29,7 @@ uint16_t MODBUS_handle_function(uint8_t slave_id, uint8_t function_code, uint8_t
 		uint16_t response_length = 0;
 
 		switch (function_code) {
-			case 0x01:
+			case READ_COIL:
 
 				/* for debug */
 				//HAL_UART_Transmit(&huart1, (uint8_t*) "READ COILS\r\n", strlen("READ COILS \r\n"), HAL_MAX_DELAY);
@@ -37,15 +37,12 @@ uint16_t MODBUS_handle_function(uint8_t slave_id, uint8_t function_code, uint8_t
 				/* coil to start from */
 				uint16_t start = (modbus_data[2] << 8) | (modbus_data[3]);
 
-				/* how many coils */
+				/* how many coils to read */
 				uint16_t qty = (modbus_data[4] << 8) | (modbus_data[5]);
 
 				/* todo: check valid coils - build exception */
 				response[0] = slave_id;
 				response[1] = 0x01;
-
-				/* 7 ensures a proper roundup to get number of bytes needed to hold the requested number of bits */
-				response[2] = (qty + 7)/8;
 
 				uint16_t index = 3;
 				uint8_t coil_byte = 0;
@@ -73,6 +70,9 @@ uint16_t MODBUS_handle_function(uint8_t slave_id, uint8_t function_code, uint8_t
 
 				}
 
+				/* we have the number of bytes we produced */
+				response[2] = index - 3;
+
 				/* append CRC for RTU messages */
 				if(src == MODBUS_RTU) {
 					uint16_t crc = MAX485_calculate_CRC(response, index);
@@ -90,10 +90,35 @@ uint16_t MODBUS_handle_function(uint8_t slave_id, uint8_t function_code, uint8_t
 				}
 
 
+
+
+				break;
+
+			case FORCE_SINGLE_COIL:
+				uint16_t start_addr = (modbus_data[2] << 8) | modbus_data[3];
+
+				/* shoudlwe write on or off */
+				uint16_t coil_value = (modbus_data[4] << 8) | modbus_data[5];
+
+				/* check coil value to write 0x0000 -> OFF, 0xFF00 -> ON */
+				uint8_t coil_state = ( coils[ (start_addr / 8) ] >> (start_addr % 8) );
+
+				if(coil_value == 0xFF00) {
+					/* set the bit */
+					coil_state |= 0x01;
+
+				} else if(coil_value == 0x0000) { // COIL OFF
+					coil_state &= ~(0x01);
+
+				} else {
+					// todo: handle noise/illegal data
+				}
+
+
 				break;
 
 
-			case 0x05:
+			case REPORT_SLAVE_ID:
 				break;
 
 		}
