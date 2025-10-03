@@ -319,16 +319,54 @@ Using the hardware I had namely:
 
 I could transmit from one STM32 (MASTER ) to the slave device. 
 
-However, to test real MODBUS RTU packets, I used QmodMaster simulator on my PC to simulate the master packets. The following screenshots show that master commands are being identified.This was the first handshake between master(My PC) and the STM32 slave device.
+However, to test real MODBUS RTU packets, I used QmodMaster simulator on my PC to simulate the master packets. The following screenshots show that master commands are being identified.
 
 The following is the setup I used:
 
 ![](../images/modbus-sim.png)
 
-##### Read coils
+### Read coils
 ---
-![](../images/qmod-read-coil.png) -> QMODMASTER SIMULATOR
-![](../images/com-read-coil.png) -> SERIAL OUTPUT
+
+I used a simulated coil byte array that looks like this:
+
+```c
+/* example coils byte array for testing - each bit holds a coil - grouped into bytes of coils */
+uint8_t coils[(COIL_COUNT + 7) / 8] = {0x4D, 0x0D};
+```
+I will try read from the first byte (0x4D) (0b01001101) to validate my code. 
+This is the request sent from the master: 
+
+#### Request (from Master)
+| Field        | Value (Hex) | Description                     |
+|--------------|-------------|---------------------------------|
+| Slave ID     | `01`        | Address of slave device         |
+| Function     | `01`        | Read Coils                      |
+| Start Addr Hi| `00`        | High byte of start address      |
+| Start Addr Lo| `00`        | Low byte of start address       |
+| Qty Hi       | `00`        | High byte of quantity           |
+| Qty Lo       | `03`        | Read 3 coils                    |
+| CRC Lo       | `??`        | CRC16 low byte (calculated)     |
+| CRC Hi       | `??`        | CRC16 high byte (calculated)    |
+
+#### Expected response 
+Since my coils bits are 0b0100 1101, and first coil is LSB, I expect to return 0b0000 0101 (0x05) as the value of my coils. This is the expected response: 
+
+#### Response (from Slave, coils = `0x4D`)
+| Field        | Value (Hex) | Description                          |
+|--------------|-------------|--------------------------------------|
+| Slave ID     | `01`        | Same as request                      |
+| Function     | `01`        | Read Coils                           |
+| Byte Count   | `01`        | 1 byte of coil data follows          |
+| Coil Status  | `05`        | `0b00000101` → coils 0=1, 1=0, 2=1    |
+| CRC Lo       | `??`        | CRC16 low byte (calculated)          |
+| CRC Hi       | `??`        | CRC16 high byte (calculated)         |
+
+I did this using the simulator and this is the response
+
+![](../images/read-coils.png) 
+
+This validates my read coils function as required.
 
 ##### Write multiple coils
 ---
