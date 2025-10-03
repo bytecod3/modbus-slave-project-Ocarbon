@@ -1,6 +1,7 @@
 "./Core/Src/freertos.o"
 "./Core/Src/main.o"
 "./Core/Src/mcp23017.o"
+"./Core/Src/modbus.o"
 "./Core/Src/modbus_rtu.o"
 "./Core/Src/modbus_tcp.o"
 "./Core/Src/relays.o"

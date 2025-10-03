@@ -18,7 +18,7 @@
 typedef struct _modbus_packet {
 	uint16_t len;
 	uint8_t data[MODBUS_RTU_MAX_SIZE];
-} ModBus_type_t;
+} ModBus_RTU_type_t;
 
 // todo: create  pointer typedef
 

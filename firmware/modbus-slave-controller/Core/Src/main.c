@@ -32,6 +32,7 @@
 #include "relays.h" // todo: create a task to control the relays
 #include "modbus_rtu.h"
 #include "modbus_tcp.h"
+#include "modbus.h"
 
 /* USER CODE END Includes */
 
@@ -50,10 +51,6 @@ int modbus_rx_len = 0; // actual received modbus message length
 uint8_t modbus_rx_message[MODBUS_RTU_MAX_SIZE] = {0}; // to hold the received modbus message
 char uart_buff[10] = {0}; // for debug
 
-#define COIL_COUNT 100
-uint8_t COIL[COIL_COUNT] = {0}; // this is for debugging - does not follow MODBUS protocol of 1 bit per coil
-
-uint8_t coils[(COIL_COUNT + 7) / 8] = {0x4D, 0x0D}; // MODBUS spec coils -> rounds off to the nearest byte (ceiling method)
 
 /* USER CODE END PD */
 
@@ -77,20 +74,22 @@ osThreadId x_task_ethernet_control_handle;
 osThreadId x_task_get_device_diagnostics_handle;
 osThreadId x_task_print_to_terminal_handle;
 osThreadId x_task_clean_modbus_RTU_queue_handle;
-
+osThreadId x_task_modbus_RTU_dispatcher_handle;
 
 //============ DATA QUEUE HANDLES  ============
 QueueHandle_t modbus_RTU_queue_handle;
 QueueHandle_t modbus_TCP_queue_handle;
+QueueHandle_t modbus_RTU_dispatcher_queue_handle;
+QueueHandle_t modbus_RTU_print_to_terminal_queue_handle;
 
-// =========== SEMPAHORE HANDLES ===============
+// =========== SEMAPHORE HANDLES ===============
 SemaphoreHandle_t x_relay_control_semaphore;
 
 // ============ EVENT GROUPS =================
-#define RECEIVE_MODBUS_BIT		(1 << 0UL)		// bit set if MODBUS RTU received from MODBUS_RTU queue
-#define PRINT_TO_TERMINAL_BIT	(1 << 1UL)		// bit set if Print to terminal task received from MODBUS_RTU queque
+#define RECEIVE_MODBUS_RTU_BIT		(1 << 0UL)		// bit set if MODBUS RTU received from MODBUS_RTU queue
+#define PRINT_TO_TERMINAL_BIT		(1 << 1UL)		// bit set if Print to terminal task received from MODBUS_RTU queque
 
-EventGroupHandle_t modbus_event_group_handle;
+EventGroupHandle_t modbus_RTU_event_group_handle;
 
 // diagnostics variable
 diagnostics_type_t diagnostics;
@@ -156,6 +155,7 @@ void x_task_ethernet_control(void const* argument);
 void x_task_get_device_diagnostics(void const* argument);
 void x_task_print_to_terminal(void const* argument);
 void x_task_clean_modbus_RTU_queue(void const* argument);
+void x_task_modbus_RTU_dispatcher(void const* argument);
 
 
 /* USER CODE END PFP */
@@ -227,7 +227,7 @@ int main(void)
   // enable IDLE LINE INTERRUPT for UART2 that is connected to MAX485 module
   HAL_UARTEx_ReceiveToIdle_IT(&huart2, modbus_rx_message, MODBUS_RTU_MAX_SIZE);
 
-  UART_print("=======MODBUS SLAVE DEVICE======= \r\n");
+  UART_print("\r\n======= MODBUS SLAVE DEVICE ======= \r\n");
 //  HAL_UART_Transmit(&huart1, (uint8_t*)"=======MODBUS SLAVE DEVICE======= \r\n\n", strlen("=======MODBUS SLAVE DEVICE======= \r\n\n"), HAL_MAX_DELAY);
 //  HAL_Delay(1000);
 
@@ -242,6 +242,13 @@ int main(void)
 
   //x_relay_control_semaphore = xSemapahoreCreateBinary();
 
+  modbus_RTU_event_group_handle = xEventGroupCreate();
+  if(modbus_RTU_event_group_handle == NULL) {
+	  UART_print("Modbus RTU event group failed to create OK\r\n");
+  } else {
+	  UART_print("Modbus RTU event group created OK\r\n");
+  }
+
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -250,17 +257,18 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-  modbus_RTU_queue_handle = xQueueCreate(5, sizeof(ModBus_type_t)); // todo: check for successful creation
+  modbus_RTU_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t)); // todo: check for successful creation
 
   if(modbus_RTU_queue_handle != NULL) {
 	  //UART_print("MODBUS queue created OK");
-	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS queue created OK\r\n", strlen("MODBUS queue created OK\r\n"), HAL_MAX_DELAY);
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS RTU queue created OK\r\n", strlen("MODBUS RTU queue created OK\r\n"), HAL_MAX_DELAY);
   } else {
 	  //UART_print("MODBUS queue failed to create");
-	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS queue failed to create\r\n", strlen("MODBUS queue failed to create\r\n"), HAL_MAX_DELAY);
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS RTU queue failed to create\r\n", strlen("MODBUS RTU queue failed to create\r\n"), HAL_MAX_DELAY);
   }
 
   modbus_TCP_queue_handle = xQueueCreate(5, sizeof(Modbus_tcp_type_t));
+
   if(modbus_TCP_queue_handle != NULL) {
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS TCP queue created OK\r\n", strlen("MODBUS TCP queue created OK\r\n"), HAL_MAX_DELAY);
   } else {
@@ -268,6 +276,19 @@ int main(void)
 
   }
 
+  modbus_RTU_dispatcher_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t));
+  if(modbus_TCP_queue_handle != NULL) {
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS dispatcher queue created OK\r\n", strlen("MODBUS dispatcher queue created OK\r\n"), HAL_MAX_DELAY);
+  } else {
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS dispatcher queue failed to create\r\n", strlen("MODBUS dispatcher queue failed to create\r\n"), HAL_MAX_DELAY);
+  }
+
+  modbus_RTU_print_to_terminal_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t));
+  if(modbus_RTU_print_to_terminal_queue_handle != NULL) {
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS printer queue created OK\r\n", strlen("MODBUS printer queue created OK\r\n"), HAL_MAX_DELAY);
+  } else {
+	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS printer queue failed to create\r\n", strlen("MODBUS printer queue failed to create\r\n"), HAL_MAX_DELAY);
+  }
 
   /* USER CODE END RTOS_QUEUES */
 
@@ -279,23 +300,29 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 
-  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
-  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
+//  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
+//  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
 
-  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityNormal , 0, 2048); // task to receive MODBUS data
+  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityIdle+ 5 , 0, 2048); // task to receive MODBUS data
   x_task_receive_modbus_RTU_handle = osThreadCreate(osThread(receive_modbus_RTU), NULL);
 
-  osThreadDef(receive_modbus_TCP, x_task_receive_modbus_TCP, osPriorityIdle + 3, 0, 128); // task to receive data via MODBUS TCP
-  x_task_receive_modbus_TCP_handle = osThreadCreate(osThread(receive_modbus_TCP), NULL);
+//  osThreadDef(receive_modbus_TCP, x_task_receive_modbus_TCP, osPriorityIdle + 3, 0, 128); // task to receive data via MODBUS TCP
+//  x_task_receive_modbus_TCP_handle = osThreadCreate(osThread(receive_modbus_TCP), NULL);
 
-  osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 128); // task to print to UART if using UART debug
+  osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 1024); // task to print to UART if using UART debug
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
 
-  osThreadDef(control_relay, x_task_relay_control, osPriorityNormal , 0, 1024); // task to control relays
-  x_task_relay_control_handle = osThreadCreate(osThread(control_relay), NULL);
+//  /* osThreadDef(clean_modbus_queue, x_task_clean_modbus_RTU_queue, osPriorityNormal, 0, 128); // task to dequeue items from MODBUS RTU task */
+//  /* x_task_clean_modbus_RTU_queue_handle = osThreadCreate(osThread(clean_modbus_queue), NULL); */
+//
+//  osThreadDef(control_relay, x_task_relay_control, osPriorityNormal , 0, 1024); // task to control relays
+//  x_task_relay_control_handle = osThreadCreate(osThread(control_relay), NULL);
+//
+//  osThreadDef(ethernet_control, x_task_ethernet_control, osPriorityNormal , 0, 1024); // task to control ethernet communicattion
+//  x_task_ethernet_control_handle = osThreadCreate(osThread(ethernet_control), NULL);
 
-  osThreadDef(ethernet_control, x_task_ethernet_control, osPriorityNormal , 0, 1024); // task to control ethernet communicattion
-  x_task_ethernet_control_handle = osThreadCreate(osThread(ethernet_control), NULL);
+  osThreadDef(RTU_msg_dispatcher, x_task_modbus_RTU_dispatcher, osPriorityNormal, 0, 128); /* task to forward received MODBUS RTU message to consumers */
+  x_task_modbus_RTU_dispatcher_handle = osThreadCreate(osThread(RTU_msg_dispatcher), NULL);
 
 
   // todo -> check successful task creation
@@ -557,12 +584,24 @@ void x_task_get_device_diagnostics(void const* args) {
  * @param arguments
  */
 void x_task_print_to_terminal(void const* arguments ) {
+	ModBus_RTU_type_t modbus_packet;
+	uint16_t pkt_len;
 
 	for(;;) {
-		// todo: use event group to queue peek here
-		// use mutex to prevent writing to the uart tx buffer while the buffer is printing
-		//UART_print(uart_tx_buffer);
-		vTaskDelay(pdMS_TO_TICKS(5)); 	// prevent task starvation
+
+		if(xQueueReceive(modbus_RTU_print_to_terminal_queue_handle, &modbus_packet, 200) == pdTRUE) {
+
+			pkt_len = modbus_packet.len;
+			printf("Dequeued packet, len=%u\r\n", pkt_len);
+
+			for(size_t i=0; i < pkt_len; i++) {
+				printf("%02X ", modbus_packet.data[i]);
+			}
+
+			printf("\r\n");
+
+		}
+
 	}
 }
 
@@ -578,24 +617,19 @@ void send_modbus_data_to_UART1(char* msg) {
 void MODBUS_send_response(uint8_t* response, uint16_t len) {
 	HAL_UART_Transmit(&huart2, response, len, HAL_MAX_DELAY);
 
-	// todo: use interrupts here
 }
 
 /**
  * @brief THis task receives MODBUS data from the master and parses it
  */
 void x_task_receive_modbus_RTU(void const* argument) {
-	ModBus_type_t modbus_message;
+	ModBus_RTU_type_t modbus_message;
 	uint8_t response[MODBUS_RTU_MAX_SIZE];  // this will hold the slave response back to master
-	//uint16_t response_length;
-
-	//HAL_UARTEx_ReceiveToIdle_IT(&huart2, modbus_rx_message, MODBUS_MSG_MAX_SIZE);
 
 	for(;;) {
-		//send_modbus_data_to_UART1("In receive modbus data task\n");
 
-		if(xQueuePeek(modbus_RTU_queue_handle, &modbus_message, 1000) == pdTRUE) {
-			send_modbus_data_to_UART1("RECEIVED MASTER REQUEST OK\n");
+		if(xQueueReceive(modbus_RTU_queue_handle, &modbus_message, portMAX_DELAY) == pdTRUE) {
+			UART_print("RECEIVED MASTER REQUEST OK\r\n");
 			// debug via USART1
 
 			if(modbus_message.len < 4) continue; // skip this frame its too short
@@ -621,139 +655,76 @@ void x_task_receive_modbus_RTU(void const* argument) {
 			/* check what function code was received */
 			uint8_t function_code = modbus_message.data[1];
 
-			// todo: check for supported functions
+			/* todo: check for an array of supported functions */
 
+			/* handle the received function code */
+			uint16_t response_length = MODBUS_handle_function(received_slave_id, function_code, modbus_message.data,  response, MODBUS_RTU);
 
-			// Here I handle supported functions
-			if(function_code == 0x01) { // READ COILS  todo: put this into its own functions
+			MODBUS_send_response(response, response_length);
+			//MODBUS_send_response(modbus_message.data, modbus_message.len); // loopback test
 
-				// sample packet structure for read coils request is as follows
-				// [addr][func=0x01][addr_hi][addr_lo][qty_hi][qty_lo][crc_lo][crc_hi]
-				//MAX_485_read_coils_handler();
-				HAL_UART_Transmit(&huart1, (uint8_t*) "READ COILS\r\n", strlen("READ COILS \r\n"), HAL_MAX_DELAY);
-
-				uint16_t start = (modbus_message.data[2] << 8) | (modbus_message.data[3]); // what coil to start from
-				uint16_t qty = (modbus_message.data[4] << 8) | (modbus_message.data[5]);
-
-				// todo: check number of coils if valid greater than 2000 of less than 1
-				// build an exception here
-
-				// get slave address
-				response[0] = received_slave_id;
-				response[1] = 0x01; // function code
-				response[2] = (qty + 7)/8; // 7 ensures a proper roundup to get number of bytes needed to hold the requested number of bits
-
-				uint16_t index = 3;
-				uint8_t coil_byte = 0;
-				uint8_t bit_pos = 0;
-
-				for(uint16_t i = 0; i < qty; i++) {
-
-					/* get the actual coil value - bit extraction*/
-					uint8_t coil_val = (coils[(start + i) / 8] >>  ( (start + i) %8)) & 0x01;
-
-					if(coil_val) {
-						coil_byte |= (1 << bit_pos); // if coil is 1, set the bit at that position
-					}
-
-					bit_pos++; // next bit position
-
-					if(bit_pos == 8 || i == qty - 1) {
-						response[index++] = coil_byte;
-						coil_byte = 0;
-						bit_pos = 0;
-					}
-				}
-
-				// append the CRC byte
-				uint16_t crc = MAX485_calculate_CRC(response, index);
-				response[index++] = crc & 0xFF; // get CRC LOW
-				response[index++] = (crc >> 8) & 0xFF; // get CRC HIGH
-
-				uint8_t response_length = index;
-
-				send_modbus_data_to_UART1(response);
-
-				printf("Received REQUEST\r\n");
-				for(uint16_t i=0; i < modbus_message.len; i++) {
-					printf("%02X ", modbus_message.data[i]);
-				}
-
-				printf("\r\n");
-
-				printf("Computed response\r\n");
-				for(uint16_t i=0; i < response_length; i++) {
-					printf("%02X ", response[i]);
-				}
-
-				printf("\r\n");
-
-				// todo: transmit to master
-				MODBUS_send_response(response, response_length);
-				MODBUS_send_response(modbus_message.data, modbus_message.len); // loopback test
-
-			} else if (function_code == 0x05) {   /* WRITE SINGLE COIL */
-
-				HAL_UART_Transmit(&huart1, (uint8_t*) "WRITE SINGLE COIL\r\n", strlen("WRITE SINGLE COIL\r\n"), HAL_MAX_DELAY);
-
-				// get the starting coil address
-				uint16_t start_addr = (modbus_message.data[2] << 8) | modbus_message.data[3];
-				uint16_t coil_value = (modbus_message.data[4] << 8) | modbus_message.data[5];
-
-				// check if value ON or OFF
-				if(coil_value == 0xFF00) { // coil ON
-					COIL[start_addr] = 1;
-				} else if(coil_value == 0x00) { // COIL OFF
-					COIL[start_addr] = 0;
-				} else {
-					// todo: handle noise/illegal data
-				}
-
-				// build the response
-				response[0] = received_slave_id;
-				response[1] = 0x05; // function code
-				response[2] = modbus_message.data[2];
-				response[3] = modbus_message.data[3];
-				response[4] = modbus_message.data[4];
-				response[5] = modbus_message.data[5];
-
-				// calculate CRC
-				uint16_t crc = MAX485_calculate_CRC(response, 6);
-				response[6] = crc & 0xFF;
-				response[7] = (crc >> 8) & 0xFF;
-
-				// echo back the same request as response
-
-				uint8_t response_length = 8;
-				// todo: send response (response_buffer, response_length)
-
-			} else if(function_code == 0x0F) {  //  WRITE MULTIPLE COILS
-
-				HAL_UART_Transmit(&huart1, (uint8_t*) "WRITE MULTIPLE COILS\r\n", strlen("WRITE MULTIPLE COILS\r\n"), HAL_MAX_DELAY);
-
-				/* extract data from MODBUS packet */
-				uint16_t start = (modbus_message.data[2] << 8) | (modbus_message.data[3]);
-				uint16_t qty = (modbus_message.data[4] << 8) | modbus_message.data[5];
-				uint8_t byte_count = modbus_message.data[6];
-
-				/* update my COIL array from packed request bytes */
-				for(uint16_t i = 0; i < qty; i++) {
-					uint16_t byte_index = i / 8;  // depending on number of bytes received
-					uint8_t bit_index = i % 8;   // get bit position
-					uint8_t coil_val = (COIL[byte_index] >> bit_index) & 0x01;  // this sets or clears a bit at that position
-					COIL[start + i] = coil_val; // here, I update the coil byte with the hnew written value
-				}
-
-				/* release semaphore here to notify the relay control task that we are done updating coils */
-
-			}
-
-			vTaskDelay(pdMS_TO_TICKS(5));
-		} else {
-			//UART_print("Failed to receive from queue\n");
-			// todo: log error count
+//			}
+//		else if (function_code == 0x05) {   /* WRITE SINGLE COIL */
+//
+//				HAL_UART_Transmit(&huart1, (uint8_t*) "WRITE SINGLE COIL\r\n", strlen("WRITE SINGLE COIL\r\n"), HAL_MAX_DELAY);
+//
+//				// get the starting coil address
+//				uint16_t start_addr = (modbus_message.data[2] << 8) | modbus_message.data[3];
+//				uint16_t coil_value = (modbus_message.data[4] << 8) | modbus_message.data[5];
+//
+//				// check if value ON or OFF
+//				if(coil_value == 0xFF00) { // coil ON
+//					COIL[start_addr] = 1;
+//				} else if(coil_value == 0x00) { // COIL OFF
+//					COIL[start_addr] = 0;
+//				} else {
+//					// todo: handle noise/illegal data
+//				}
+//
+//				// build the response
+//				response[0] = received_slave_id;
+//				response[1] = 0x05; // function code
+//				response[2] = modbus_message.data[2];
+//				response[3] = modbus_message.data[3];
+//				response[4] = modbus_message.data[4];
+//				response[5] = modbus_message.data[5];
+//
+//				// calculate CRC
+//				uint16_t crc = MAX485_calculate_CRC(response, 6);
+//				response[6] = crc & 0xFF;
+//				response[7] = (crc >> 8) & 0xFF;
+//
+//				// echo back the same request as response
+//
+//				uint8_t response_length = 8;
+//				// todo: send response (response_buffer, response_length)
+//
+//			} else if(function_code == 0x0F) {  //  WRITE MULTIPLE COILS
+//
+//				HAL_UART_Transmit(&huart1, (uint8_t*) "WRITE MULTIPLE COILS\r\n", strlen("WRITE MULTIPLE COILS\r\n"), HAL_MAX_DELAY);
+//
+//				/* extract data from MODBUS packet */
+//				uint16_t start = (modbus_message.data[2] << 8) | (modbus_message.data[3]);
+//				uint16_t qty = (modbus_message.data[4] << 8) | modbus_message.data[5];
+//				uint8_t byte_count = modbus_message.data[6];
+//
+//				/* update my COIL array from packed request bytes */
+//				for(uint16_t i = 0; i < qty; i++) {
+//					uint16_t byte_index = i / 8;  // depending on number of bytes received
+//					uint8_t bit_index = i % 8;   // get bit position
+//					uint8_t coil_val = (COIL[byte_index] >> bit_index) & 0x01;  // this sets or clears a bit at that position
+//					COIL[start + i] = coil_val; // here, I update the coil byte with the hnew written value
+//				}
+//
+//				/* release semaphore here to notify the relay control task that we are done updating coils */
+//
+//			}
+//
+//
+//		} else {
+//			UART_print("Failed to receive from MODBUS RTU queue\n");
+//			// todo: log error count
 		}
-
 	}
 
 }
@@ -765,30 +736,30 @@ void x_task_receive_modbus_RTU(void const* argument) {
 void x_task_receive_modbus_TCP(void const* arguments) {
 	Modbus_tcp_type_t modbus_tcp_pkt;
 	uint8_t modbus_tcp_response[MODBUS_TCP_MAX_SIZE];
-	uint16_t response_len;
+	uint16_t response_len = 0;
 
 	for(;;) {
 		// peek from ModBus TCP queue
-		if(xQueuePeek(modbus_TCP_queue_handle, &modbus_tcp_pkt, HAL_MAX_DELAY) == pdPASS) { // todo: remove MAX delay
+		if(xQueuePeek(modbus_TCP_queue_handle, &modbus_tcp_pkt, portMAX_DELAY) == pdPASS) { // todo: remove MAX delay
 
 			if(modbus_tcp_pkt.len < 8) {  // MBAP header(7 bytes) + function(1 byte) is 8 bytes todo: get this length from the function receiving the TCP packet
 				continue;				// ignore and jump to the next iteration of the loop
 			}
 
-			uint16_t transaction_id = (modbus_tcp_pkt[0] << 8) | (modbus_tcp_pkt[1]); ///< MBAP valyes
-			uint16_t protocol_id = (modbus_tcp_pkt[2] << 8) | (modbus_tcp_pkt[3]);
-			uint16_t length_id = (modbus_tcp_pkt[4] << 8) | (modbus_tcp_pkt[5]);
-			uint8_t unit_id = modbus_tcp_pkt[6];  // slave ID
+			uint16_t transaction_id = (modbus_tcp_pkt.data[0] << 8) | (modbus_tcp_pkt.data[1]); ///< MBAP valyes
+			uint16_t protocol_id = (modbus_tcp_pkt.data[2] << 8) | (modbus_tcp_pkt.data[3]);
+			uint16_t length_id = (modbus_tcp_pkt.data[4] << 8) | (modbus_tcp_pkt.data[5]);
+			uint8_t unit_id = modbus_tcp_pkt.data[6];  // slave ID
 
-			uint8_t function_code = modbus_tcp_pkt[7];		///< Protocol Data Unit (PDU)
-			uint8_t* modbus_data = &modbus_tcp_pkt[8];
+			uint8_t function_code = modbus_tcp_pkt.data[7];		///< Protocol Data Unit (PDU)
+			uint8_t* modbus_data = &modbus_tcp_pkt.data[8];
 
 			// get the length of the PDU
-			uint16_t pdu_len = modbus_pkt.len - 7; // MBAP is 7 bytes
+			uint16_t pdu_len = modbus_tcp_pkt.len - 7; // MBAP is 7 bytes
 
 			// check and operate on the function code
 			// this is the length of the PDU only
-			response_len = modbus_tcp_handle(function_code, pdu_data, pdu_length, response);
+			//response_len = modbus_tcp_handle(function_code, pdu_data, pdu_length, response);
 
 			// build back the header (7 bytes)
 			modbus_tcp_response[0] = transaction_id >> 8; // hi byte
@@ -803,12 +774,15 @@ void x_task_receive_modbus_TCP(void const* arguments) {
 			uint16_t total_length = response_len + 7;
 
 			// todo: send back this response to master
-			modbus_tcp_send_response();
+			//modbus_tcp_send_response();
 
 			// send response via ModBus TCP
 		} else {
 			// todo: error/debug
 		}
+
+		// update event bit
+		//xEventGroupSetBits(modbus_TCP_event_group_handle, )
 	}
 }
 
@@ -850,25 +824,52 @@ void x_task_ethernet_control(void const* argument) {
  * @brief This task removes data from MODBUS RTU queue after all teh consuming tasks are done peeking
  * the queue
  */
+
+/*
 void x_task_clean_modbus_RTU_queue(void const* argument) {
-	EventBits_t x_event_group_value;			 ///< event group value
-	const EventBits_t x_bits_to_wait_for = (PRINT_TO_TERMINAL_BIT | RECEIVE_MODBUS_BIT); ///< wait for these 2 bits to be set
-	ModBus_type_t modbus_RTU_message; ///< variable to save the removed value to
+
+	const EventBits_t x_bits_to_wait_for = (PRINT_TO_TERMINAL_BIT | RECEIVE_MODBUS_RTU_BIT); ///< wait for these 2 bits to be set
+	ModBus_RTU_type_t modbus_RTU_message; ///< variable to save the removed value to
 
 	for(;;) {
 
-		x_event_group_value = xEventGroupWaitBits(
-				modbus_event_group_handle, 		///< event group handle to wait for
+		xEventGroupWaitBits(
+				modbus_RTU_event_group_handle, 		///< event group handle to wait for
 				x_bits_to_wait_for, 			///< bit sequence to wait for
 				pdTRUE, 						///< clear all bits on exit if unblock condition is met
 				pdTRUE, 						///< wait for all bits to be set
 				HAL_MAX_DELAY); 				///< TODO: remove this from MAX in prod
+
+
+		// at this point all the items have been received by consumer
+		if(xQueueReceive(modbus_RTU_queue_handle, &modbus_RTU_message, HAL_MAX_DELAY) == pdPASS) { // todo: use a defined time in prod
+			UART_print("Dequeue MODBUS RTU OK");
+		} else {
+			UART_print("Failed to Dequeue MODBUS RTU");
+		}
 	};
 
-	// at this point all the items have been received by consumer
-	xQueueReceive(modbus_RTU_queue_handle, &modbus_RTU_message, HAL_MAX_DELAY); // todo: use a defined time in prod
 
 }
+*/
+
+/**
+ * @brief dispatch modbusRTU messages to consumers
+ */
+void x_task_modbus_RTU_dispatcher(void const * arguments) {
+	ModBus_RTU_type_t modbus_pkt;
+
+	for(;;) {
+		xQueueReceive(modbus_RTU_dispatcher_queue_handle, &modbus_pkt, portMAX_DELAY); /* todo: define wait time */
+
+		/* dispatch the received item to per consumer queues */
+		/* todo: check for successful queue send */
+		xQueueSend(modbus_RTU_queue_handle, &modbus_pkt, 1000);
+		xQueueSend(modbus_RTU_print_to_terminal_queue_handle, &modbus_pkt, 1000);
+
+	}
+}
+
 
 /**
  * @brief Callback called when IDLE is detected or we a re done receiving MODBUS Message
@@ -876,25 +877,33 @@ void x_task_clean_modbus_RTU_queue(void const* argument) {
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
 	if(huart->Instance == USART2) { 			  // MAX485 is connected to USART2
+		ModBus_RTU_type_t msg;
 
-		//HAL_UART_Transmit(&huart1, (uint8_t*)"Received on USART 2\r\n", strlen( "Received on USART 2\r\n"), HAL_MAX_DELAY);
+		UART_print("Data arrived on MODBUS\r\n");
 
-		//send_modbus_data_to_UART1("Data arrived on MODBUS\n");
-		//HAL_GPIO_TogglePin(ISR_DBG_LED_GPIO_Port, ISR_DBG_LED_Pin);
+		/* clear the modbus packet buffer */
+		memset(&msg, 0, sizeof(ModBus_RTU_type_t));
 
-		ModBus_type_t msg;
 		msg.len = Size; 						   // whatever length that has been received
 		memcpy(msg.data, modbus_rx_message, Size); // copy to MODBUS data field
 
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-		xQueueSendFromISR(modbus_RTU_queue_handle, &msg, &xHigherPriorityTaskWoken);
+		if(xQueueSendFromISR(modbus_RTU_dispatcher_queue_handle, &msg, &xHigherPriorityTaskWoken) == pdPASS) {
+			UART_print("Sent MODBUS RTU from ISR\r\n");
+		} else {
+			UART_print("Failed to send MODBUS RTU from ISR\r\n");
+		}
 		// todo: check for failed queue send and log error
 
 		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);	// if task waiting for modbus has a higher priority, it will ranm(pre-empt a lower priroty task)
 
 		// restart the RECEIVE TO idle interrupt
+//		__HAL_UART_CLEAR_IDLEFLAG(&huart2);
+//		__HAL_UART_FLUSH_DRREGISTER(&huart2);
 		HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*) modbus_rx_message, MODBUS_RTU_MAX_SIZE);
 
+	} else {
+//		UART_print("Interrupt failed\r\n");
 	}
 
 }
