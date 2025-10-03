@@ -3,7 +3,7 @@
 ![Static Badge](https://img.shields.io/badge/status-development-green)
 
 #### Details 
-Prepared by: Edwin Mwiti
+Prepared by: Edwin Mwiti  
 Submission for: Control and Instrumentation Engineer - Intern
 
 ## Table of Contents 
@@ -11,6 +11,7 @@ Submission for: Control and Instrumentation Engineer - Intern
 2. Functional requirements 
 3. Relay control 
 4. Industry standard relay control interface and schematic
+Relay power supply 
 5. Relay control logical organization 
 6. IO expander driver 
 7. Relay driver interface 
@@ -75,6 +76,27 @@ This circuit is designed to be compatible with PLC-RSC-24DC/21 relay module that
 ![](../schematic-excerpts/relay-control.png)
 
 
+## Relay power supply 
+To provide a stable and robust power supply scheme for the relay control (S7-1200), I'd recommend the following setup. 
+- Using a dedicated 24V DC power supply. This must be an SMP to minimise conversion losses. Typical used power supply is a AC-24DC converter block. Or a DC-DC converter with sufficient current to drive the coil solenoid. 
+- Next a robust driver IC/mechanism is recommended. For low losses , I'd use an N-channel mosfet (P channel would require high side driver which further complicates the circuit). A MOSFET can be used for each relay. 
+
+Cost implications -> However if I use a single mosfet for each relay, cost might be high but factoring in ecnonimes of scale, we can acyually make it cheaper for more units. 
+
+Alternatively, use  driver IC like the ULN2803. This can drive multiple relays and make the design a little bit more compact of we have a lot of relays to drive. 
+
+- **Protection:**
+- To meet standards, I would use a TVS diode to clamp surges on just next to relay solenoid. I have added one in the abive circuit. 
+- Adding a flyback diode in parallel with the relay's coils will suck in back EMF during transient switching. 
+
+- **Isolation:**
+I used an optocoupler to provide isolation in my setup. This can be further improved by using voltage isolation ICs. However for this assignment, optocouplers will suffice. 
+
+The block diagram below shows the relay side driving. 
+
+![](../images/relay-hardware.png)
+
+
 ### Relay logical organization
 To organize 32 relays logically, and to remain simple, I used bit groups. Each relay bank is a uint8_t type, where each relay is represented by a single bit in that uint8_t type.
 
@@ -125,7 +147,7 @@ void relay_clear_bank(uint8_t bank);
 
 
 ```
-The fucntions are pretty quite well documented on the files themselves.
+The functions are pretty quite well documented on the files themselves.
 
 
 #### Abstraction levels
@@ -142,11 +164,11 @@ On the software side, the driver remains the same, but if we add more relays we 
 I have tested and validated this code/functions with actual hardware expander chip and STM32F401CCU6, the following tests have been carried out:
     - STM32F401CCU6 code compilation
     - MCP23017 Driver GPIO expansion
-The image below shows a crude breadbosrd model of this.
 
-[todo -insert image]
 
-However, for Relay control, PLC ladder logic is used for industrial setting. How I would test this is I would write PLC ladder logic code to verify ....
+If, however, PLC ladder logic is needed and used, the following block diagram represents how I would wire the PLCs for relat control: 
+
+### PLC ladder logic
 
 [todo]
 
@@ -419,12 +441,8 @@ This is the request I sent to the slave:
 The expected response should be same as the request sent from master. And this can be seen in the above simulation. This validates my write single coil function. 
 
 
-
 ## Code decription
 #### Read coils
-I simulated the read coils function and the following was the response:
-
-![](../images/read-coil-response.png)
 
 I had a dummy coil data as shown here, (ideally these should be set and reset with relays):
 
@@ -432,8 +450,94 @@ I had a dummy coil data as shown here, (ideally these should be set and reset wi
 uint8_t coils[(COIL_COUNT + 7) / 8] = {0x4D, 0x0D};
 ```
 
-My read coils function is simulated correctly and the expected response was received. This demonstrates interoperability with a MODBUS simulator.
 
+The function below show the read coil function. Much of it follows MODBUS RTU manual, and I have documented as much as I can: 
+
+```c
+
+
+/**
+ * @brief This function handles MODBUS function codes, whether they are from RTU or TCP
+ */
+uint16_t MODBUS_handle_function(uint8_t slave_id, uint8_t function_code, uint8_t* modbus_data, uint8_t* response, uint8_t src) {
+
+	/*todo: check for null pointer */
+	if(response != NULL) {
+
+		/* to hold the length of the computed response. This is dynamic based on the function code */
+		uint16_t response_length = 0;
+
+		switch (function_code) {
+			case READ_COIL:
+
+				/* for debug */
+				//HAL_UART_Transmit(&huart1, (uint8_t*) "READ COILS\r\n", strlen("READ COILS \r\n"), HAL_MAX_DELAY);
+
+				/* coil to start from */
+				uint16_t start = (modbus_data[2] << 8) | (modbus_data[3]);
+
+				/* how many coils to read */
+				uint16_t qty = (modbus_data[4] << 8) | (modbus_data[5]);
+
+				/* todo: check valid coils - build exception */
+				response[0] = slave_id;
+				response[1] = 0x01;
+
+				uint16_t index = 3;
+				uint8_t coil_byte = 0;
+				uint8_t bit_pos = 0;
+
+				for(uint16_t i = 0; i < qty; i++) {
+					/* get the actual coil value - bit extraction*/
+					/* this is using a simulated coils buffer that have prefixed coil status - ideally it should be dynamic from the relays */
+					uint8_t coil_val = (coils[(start + i) / 8] >>  ( (start + i) %8) ) & 0x01;
+
+					/* if coil is set, set coil byte value */
+					if(coil_val) {
+						coil_byte |= (1 << bit_pos);
+					}
+
+					/* next bit position */
+					bit_pos++;
+
+					/* we have reached end of byte. reset to next byte */
+					if(bit_pos == 8 || i == qty - 1) {
+						response[index++] = coil_byte;
+						coil_byte = 0;
+						bit_pos = 0;
+					}
+
+				}
+
+				/* we have the number of bytes we produced */
+				response[2] = index - 3;
+
+				/* append CRC for RTU messages */
+				if(src == MODBUS_RTU) {
+					uint16_t crc = MAX485_calculate_CRC(response, index);
+
+					/* get CRC LOW */
+					response[index++] = crc & 0xFF;
+
+					/* get CRC HIGH */
+					response[index++] = (crc >> 8) & 0xFF;
+
+					response_length = index;
+
+				} else {
+					/* modbus TCP */
+				}
+
+
+				break;
+
+
+                /// THE REST OF THE CODE 
+
+```
+
+
+To make this documentation shorter, the other functions also follow the same structure and can be found in the ```modbus.c``` file.
 
 # Ethernet Connectivity
 The purpose of ethernet in this slave is to allow the slave device to communicate over an network using MODBUS TCP. This allows the MODBUS slave to be part of a local area network. 
@@ -558,11 +662,28 @@ The code snippet below shows the MODBUS RTU task.
 
 ### Priority table and logic behind it
 
-#### Interrupt vector Priority
-Priority must be numerically >= configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY (often 5).
+The biggest factor that affected my priority table was how critical the task  is going to be. Because I am using ISR to receive MODBUS RTU on uart, I need the queueus receiving this data to be as fast as possible to prevent blocking: 
+
+x_task_modbus_dispatcherv: I set this as priority high  (osPriorityHigh)
+because it is the first consumer of the ISR data frame. It should quickly dispatch the data to consumers so that queues dont throttle. Making it high priority so that it runs immediately after ISR fires. 
+
+x_task_receive_modbus_RTU: osPriorityAboveNormal  
+because this is the task that forms RTU responses and triggers actions. It must be fast and should not block the dispatcher from distributing new frames
+
+x_task_relay_control: osPriorityAboveNormal  
+this is critical for control. So having its priority above normal makes sure the actuation happens promptly, the priority for this must remain lower than the parser, because the parser decides which relays to activate
+
+x_task_print_to_terminal: osPriorityLow  
+This is a non-critical task 
+
+x_task_receive_modbus_TCP:  osPriorityBelowNormal  
+Depending on our use case, MODBUS RTU can be choosen to be the higher method. In this case, modbus TCP will not be very time critical. So I give it lower priority to make sure RTU traffic wins over resource contention
+
+x_task_get_device_diagnostics: osPriorityLow  
+in this case diagnotics is a background task. so low priority makes sense
 
 ### Inter-task communication
-To handle inter-task communication, I mainly used shared queues. For instance for diagnostics task, I created a queue with 5 items that hold a diagnostics data type as shown below: 
+To handle inter-task communication, I mainly used shared queues. For instance for diagnostics task, I created a queue with 10 items that hold a diagnostics data type as shown below: 
 
 This queue is used in the following two tasks:
 1. Debug to terminal task
@@ -588,22 +709,72 @@ Then I define a bit mask for each consumer task
 #define PRINT_TO_TERMINAL_BIT	(1 << 1UL)		// bit set if Print to terminal task received from MODBUS_RTU queque
 ```
 
-
-
 Each task is responsible for only peeking into the queue, without removing data from the queue. After this, is sets the corresponding event bit to notify the event group that it has finished using the data. 
 
 The task named ```x_task_clean_modbus_RTU_queue``` sits waiting for all the consumer tasks that depend on ModBus RTU data to finish receiving the data. After checking all bits are set, it can then effectivley remove this data from queue. 
 By doing this, I am able to basically sync producing tasks and consuming tasks.
 
+However, this works for low traffic, and there is tight coupling between clean_up tasks and the consumer tasks, so it is bound to fail at some point. 
+
+This led me to use the dispatcher model of task/queue synchronization: 
+
+### Queue dispatcher model 
+This is a simple model that basically creates a dispatcher queue to make sure items are removed from data queue being filled by the ISR as fast as possible, to prevent blocking/queue throttling. 
+
+In the dispatcher task, I copy the received message from the modbusRTU and send it to consumers per queue. Each consumer has its own queue just because the tasks here are few.
+
+The block diagram below shows this:
+
+![](../images/dispatcher-model.png)
+
 
 ### Memory management strategy
 
+For an industrial system such as this one, I would go for deterministic structure. This means that I have to know how much memory is allocated to each components/primitive of freeRTOS. Good thing is that frfee rtos provides static allocation of items so that we can prevent heap fragmentation. Other than this, I would do the following:
+- Use statically allocated tasks 
+- stack TCB (task control block) sizing -> For now I have used fixed task stack size, and each task is allocated task size depending on how much function/ how heavy it is
+- USe fixed length queue sizes - noe in this assignment 
+- monitor the task high watermarck to tell me how much usage is done in the RAM -> to help allocate enough RAM to critical tasks that need it 
+- I always check for successful queue operations 
+- I have used fixed length UART buffers to receive known length messages
+- Allocating maximum size for MODBUS RTU and TCP tasks according to the protocol standards
+
 ### Feedback and diagnostics 
+
+There is a separate task for basic diagnostics. Again. Although not implemented for this assignment, this can be done, with time. Here is what I would do:
+
+- Overloading the get slave ID ModBus function to pass basic items such as firmware version number, cpu frequency, last update
+- Use holding registers for structures numeric values (task watermark, wtchdog flag etc)
+
 
 ### Fault detection mechanism 
 
-### Onboard fault state indicator
+I create very basic state machine for use here. There are only two states: 
+- STATE_NOMINAL
+- STATE_FAULT 
 
+A single task monitors the state and for now just changes the LED blink time
+
+Ideally, I would develop a custom query reporting packet fetch for the device, such that if it enters fault state, It can easily accept my diagnostics commands to return what registers/log values failed etc. 
+
+
+### Onboard fault state indicator
+I used a simple unicolor LED indicator to signify when the slave device is operation okay and in fault. 
+My LED is connected on PC13. 
+
+I use the blinking time to determin the state of the device: 
+
+| System State | LED Behavior        | Blink Time  |
+|--------------|---------------------|-------------|
+| Normal       | LED toggles ON/OFF  | 1.5 seconds |
+| Fault        | LED toggles ON/OFF  | 200 ms      |
+
+
+Please note that this is not is optimized UI diaganostics as more can be done on LED UI, but based on the time frame given to do this assignment, this will suffice, I guess.
+
+**Improvements:**
+- Use RGB to control color each color representing a given state
+- PWM with gamma correction for better/human like color perception 
 
 # Testing and Validation plan
 
@@ -616,7 +787,8 @@ To stess this board, I would go with Uptime calculation. This is outlined below:
 ### Todos/feature list
 1. Add function to check supported MODBUS RTU function codes
 2. Add function to create MODBUS exceptions for each message received
-3.
+3. ONboard data logging on flash memory -> make it cyclic 
+4. Log fetching for reporting 
 
 
 ## REFERENCES
@@ -634,3 +806,6 @@ To stess this board, I would go with Uptime calculation. This is outlined below:
 12. https://www.phoenixcontact.com/en-pc/products/relay-module-plc-rsc-24dc-21-2966171
 13. https://controllerstech.com/stm32-ethernet-hardware-cubemx-lwip-ping
 14. https://www.prosoft-technology.com/kb/assets/intro_modbustcp.pdf
+
+
+Thanks!

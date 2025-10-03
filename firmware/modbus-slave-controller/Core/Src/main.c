@@ -300,24 +300,24 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 
-//  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
-//  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
+  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
+  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
 
   osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityIdle+ 5 , 0, 2048); // task to receive MODBUS data
   x_task_receive_modbus_RTU_handle = osThreadCreate(osThread(receive_modbus_RTU), NULL);
 
-//  osThreadDef(receive_modbus_TCP, x_task_receive_modbus_TCP, osPriorityIdle + 3, 0, 128); // task to receive data via MODBUS TCP
-//  x_task_receive_modbus_TCP_handle = osThreadCreate(osThread(receive_modbus_TCP), NULL);
+  osThreadDef(receive_modbus_TCP, x_task_receive_modbus_TCP, osPriorityIdle + 3, 0, 128); // task to receive data via MODBUS TCP
+  x_task_receive_modbus_TCP_handle = osThreadCreate(osThread(receive_modbus_TCP), NULL);
 
   osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 1024); // task to print to UART if using UART debug
   x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
 
 //  /* osThreadDef(clean_modbus_queue, x_task_clean_modbus_RTU_queue, osPriorityNormal, 0, 128); // task to dequeue items from MODBUS RTU task */
 //  /* x_task_clean_modbus_RTU_queue_handle = osThreadCreate(osThread(clean_modbus_queue), NULL); */
-//
-//  osThreadDef(control_relay, x_task_relay_control, osPriorityNormal , 0, 1024); // task to control relays
-//  x_task_relay_control_handle = osThreadCreate(osThread(control_relay), NULL);
-//
+
+  osThreadDef(control_relay, x_task_relay_control, osPriorityNormal , 0, 1024); // task to control relays
+  x_task_relay_control_handle = osThreadCreate(osThread(control_relay), NULL);
+
 //  osThreadDef(ethernet_control, x_task_ethernet_control, osPriorityNormal , 0, 1024); // task to control ethernet communicattion
 //  x_task_ethernet_control_handle = osThreadCreate(osThread(ethernet_control), NULL);
 
