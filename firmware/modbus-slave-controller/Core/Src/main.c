@@ -660,71 +660,11 @@ void x_task_receive_modbus_RTU(void const* argument) {
 			/* handle the received function code */
 			uint16_t response_length = MODBUS_handle_function(received_slave_id, function_code, modbus_message.data,  response, MODBUS_RTU);
 
+			/* respond to master */
 			MODBUS_send_response(response, response_length);
-			//MODBUS_send_response(modbus_message.data, modbus_message.len); // loopback test
 
-//			}
-//		else if (function_code == 0x05) {   /* WRITE SINGLE COIL */
-//
-//				HAL_UART_Transmit(&huart1, (uint8_t*) "WRITE SINGLE COIL\r\n", strlen("WRITE SINGLE COIL\r\n"), HAL_MAX_DELAY);
-//
-//				// get the starting coil address
-//				uint16_t start_addr = (modbus_message.data[2] << 8) | modbus_message.data[3];
-//				uint16_t coil_value = (modbus_message.data[4] << 8) | modbus_message.data[5];
-//
-//				// check if value ON or OFF
-//				if(coil_value == 0xFF00) { // coil ON
-//					COIL[start_addr] = 1;
-//				} else if(coil_value == 0x00) { // COIL OFF
-//					COIL[start_addr] = 0;
-//				} else {
-//					// todo: handle noise/illegal data
-//				}
-//
-//				// build the response
-//				response[0] = received_slave_id;
-//				response[1] = 0x05; // function code
-//				response[2] = modbus_message.data[2];
-//				response[3] = modbus_message.data[3];
-//				response[4] = modbus_message.data[4];
-//				response[5] = modbus_message.data[5];
-//
-//				// calculate CRC
-//				uint16_t crc = MAX485_calculate_CRC(response, 6);
-//				response[6] = crc & 0xFF;
-//				response[7] = (crc >> 8) & 0xFF;
-//
-//				// echo back the same request as response
-//
-//				uint8_t response_length = 8;
-//				// todo: send response (response_buffer, response_length)
-//
-//			} else if(function_code == 0x0F) {  //  WRITE MULTIPLE COILS
-//
-//				HAL_UART_Transmit(&huart1, (uint8_t*) "WRITE MULTIPLE COILS\r\n", strlen("WRITE MULTIPLE COILS\r\n"), HAL_MAX_DELAY);
-//
-//				/* extract data from MODBUS packet */
-//				uint16_t start = (modbus_message.data[2] << 8) | (modbus_message.data[3]);
-//				uint16_t qty = (modbus_message.data[4] << 8) | modbus_message.data[5];
-//				uint8_t byte_count = modbus_message.data[6];
-//
-//				/* update my COIL array from packed request bytes */
-//				for(uint16_t i = 0; i < qty; i++) {
-//					uint16_t byte_index = i / 8;  // depending on number of bytes received
-//					uint8_t bit_index = i % 8;   // get bit position
-//					uint8_t coil_val = (COIL[byte_index] >> bit_index) & 0x01;  // this sets or clears a bit at that position
-//					COIL[start + i] = coil_val; // here, I update the coil byte with the hnew written value
-//				}
-//
-//				/* release semaphore here to notify the relay control task that we are done updating coils */
-//
-//			}
-//
-//
-//		} else {
-//			UART_print("Failed to receive from MODBUS RTU queue\n");
-//			// todo: log error count
 		}
+
 	}
 
 }

@@ -90,30 +90,94 @@ uint16_t MODBUS_handle_function(uint8_t slave_id, uint8_t function_code, uint8_t
 				}
 
 
-
-
 				break;
 
 			case FORCE_SINGLE_COIL:
-				uint16_t start_addr = (modbus_data[2] << 8) | modbus_data[3];
 
-				/* shoudlwe write on or off */
-				uint16_t coil_value = (modbus_data[4] << 8) | modbus_data[5];
+				/* get the start address */
+				uint16_t start_address = (modbus_data[2] << 8) | (modbus_data[3]);
+				uint16_t coil_stte = (modbus_data[4] << 8) | (modbus_data[5]);
 
-				/* check coil value to write 0x0000 -> OFF, 0xFF00 -> ON */
-				uint8_t coil_state = ( coils[ (start_addr / 8) ] >> (start_addr % 8) );
+				uint8_t byte_indx = start_address / 8;
+				uint8_t bit_indx = start_address % 8;
 
-				if(coil_value == 0xFF00) {
-					/* set the bit */
-					coil_state |= 0x01;
-
-				} else if(coil_value == 0x0000) { // COIL OFF
-					coil_state &= ~(0x01);
-
+				if(coil_stte == 0xFF00) {
+					/* simulate coil setting */
+					coils[byte_indx] |= (1 << bit_indx);
+				} else if(coil_stte == 0x00) {
+					coils[byte_indx] &= ~(1 << bit_indx);
 				} else {
-					// todo: handle noise/illegal data
+					/* deal with dircty data */
 				}
 
+				response[0] = slave_id;
+				response[1] = function_code;
+				response[2] = modbus_data[2] << 8;
+				response[3] = modbus_data[3];
+				response[4] = coil_stte >> 8; /* value high */
+				response[5] = coil_stte & 0xFF; /* value low */
+
+				/* compute crc */
+				uint16_t crc16 = MAX485_calculate_CRC(response, 6);
+				response[6] = crc16 & 0xFF ;
+				response[7] = crc16 >> 8;
+
+				response_length = 8;
+
+				return response_length;
+
+				break;
+
+			case FORCE_MULTIPLE_COILS:
+
+				uint16_t start_addr = (modbus_data[2] << 8) | modbus_data[3];
+
+				/* number of coils to force */
+				uint16_t quty = (modbus_data[4] << 8) | (modbus_data[5]);
+
+				/* number of byte counts that follow */
+				uint8_t num_bytes = modbus_data[6];
+
+				/* get the actual coil data */
+				uint8_t* coil_data = modbus_data[7];
+
+				uint8_t coil_state = 0;
+
+				/* coil data */
+				for(uint16_t i = 0; i < quty; i++) {
+					uint8_t byte_index = i / 8;
+					uint8_t bit_index = i % 8;
+
+					/* this is whatever we have received from master */
+					coil_state = (coil_data[byte_index] >> bit_index) & 0x01;
+
+					uint16_t target_index = start_addr + i;
+					uint16_t target_byte = target_index / 8;
+					uint8_t target_bit = target_index % 8;
+
+					/* simulate coil setting and resetting */
+					if(coil_state) {
+						coils[target_byte] |= (1 << target_bit); /* ON */
+					} else {
+						coils[target_byte] &= ~(1 << target_bit); /* OFF */
+					}
+
+				}
+
+				/* compute the response */
+				response[0] = slave_id ;
+				response[1] = function_code;
+				response[2] = (start_addr >> 8);
+				response[3] = (start_addr & 0xFF);
+				response[4] = (quty >> 8);
+				response[5] = (quty & 0xFF);
+
+				/* calculate CRC */
+				uint16_t crc = MAX485_calculate_CRC(response, 6);
+				response[6] = crc & 0xFF ;
+				response[7] = crc >> 8;
+
+				response_length = 8;
 
 				break;
 

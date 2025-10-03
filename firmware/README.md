@@ -20,7 +20,7 @@ Submission for: Control and Instrumentation Engineer - Intern
 11. ModBuS RTU
 12. RS485 transceiver schematic
 13. RS485 transceiver schematic Improvement
-14. RS485 Driver
+14. RS485 hardware driver API
 15. Handling unknown ModBus data length
 16. Compatibity with S7-1200
 17. ModBus testing and validation with QModMaster
@@ -218,14 +218,14 @@ It exposes the following interface:
 #### Handling unknown ModBus data length
 For efficiency due to handling a large data packet, I use UART with IDLE LINE DETECTION for data reception. This allows to detect the end of transmission burst (3.5 char SILENT Interval).
 
-Now, from the MODBUS protocol, the maximum packet size is 255 bytes.
-The actual data length is 252 bytes
-
-[todo- confirm]
+Now, from the MODBUS protocol, the maximum packet size fpr PDU is 255 bytes.
+The actual data length is 252 bytes (- address - 2 bytes for CRC)
 
 The data is routed via MAX485 transceiver to handle TTL to RS485 conversion. Then my driver handles this next part which is written to parse/decode the packet:
 
-#### RS485 driver API
+#### RS485 hardware driver API
+This few functions handle RS485 connection to STM32. This functions are located in ```modbus_rtu.c``` file.
+
 a) Driver initialization
 I initialize MAX485 instance with the ```UART peripheral```, ```GPIO PORT ``` and the ```DE_RE pin```.
 
@@ -267,42 +267,42 @@ void MAX485_enable_receive(MAX485_instance inst) {
 }
 ```
 
-d) Send data (send response)
-This function is used to send a response back to the master device
+d) Calculate CRC
+This function is used to calculate and confirm CRC from the received master request. (only in RTU mode)
 
-e) Calculate CRC
-This function is used to calculate and confirm CRC from the received master request
+Polynomial used is 0xA0001
 
-f) build exception
-This function is used to create a MODBUS exception code
+```c
+uint16_t MAX485_calculate_CRC(const uint8_t* buf, uint16_t len) {
+	uint16_t crc = 0xFFFF;
+	for(uint16_t pos = 0; pos < len; pos++) {
+		crc ^= (uint16_t)buf[pos];
 
-g) read coil
-This functions implements the (0x01) function code to read a single coil
-The following is the structure of a MODBUS RTU packet from the master to request for coil data.
+		for(int i = 0; i < 8; i++) {
+			if(crc & 0x0001) crc = (crc>>1) ^ 0xA001;
+			else crc >>= 1;
+		}
+	}
+
+	return crc;
+}
+
+```
+
 
 ```c
 [ Slave Addr ][ 0x01 ][ Start Addr Hi ][ Start Addr Lo ][ Quantity Hi ][ Quantity Lo ][ CRC Lo ][ CRC Hi ]
 
 ```
 
+### ModBus operation
 Coils are defined as single-bit values that represent the status of a input/output value. They are boolean variables. For integration with relay control, since the relays are arranged in BANKS, a single BANK May be considered a coil byte, with each bit representing the status of a relay.
 
 The master sends request to the slave which then interprets the request to determine which operation it should perfom (read coils, etc)
-
-The following is the structure of the MODBUS RTU packet from the master side:
-
-[insert MODBUS master request packet here]
-
-This means that my device (slave) must intepret these requests and perform the requested function and then respond back to the master with the requested data.
-
-h) write single coil
-This function implements the (0x05) function code to write single coil
-
-i) write multiple coils
-This function implements the (0x0F) function code to write to multiple coils
+The slave performs the requested function and then responds back to the master with the requested data and/or response.
 
 ## Compatibility with S7-1200
-The S7 is going to be the master device that pulls data from MODBUS server, in this case my device is the slace device. TO maintain compatibilty, I made sure this device achieves the following list:
+The S7 is going to be the master device that pulls data from MODBUS server(slave device), in this case my device is the slave device. To maintain compatibility, I made sure this device achieves the following list:
 - Serial setings (BAUD:115200, 8-N-1)
 - Uses standard MODBUS RTU framing
 - confirms the 3.5 char SILENT INTERVAL
@@ -325,7 +325,7 @@ The following is the setup I used:
 
 ![](../images/modbus-sim.png)
 
-### Read coils
+### Read coils (0x01)
 ---
 
 I used a simulated coil byte array that looks like this:
@@ -368,18 +368,59 @@ I did this using the simulator and this is the response
 
 This validates my read coils function as required.
 
-##### Write multiple coils
+
+
+##### Write multiple coils (0x0F)
+Writing to multiple coils simultaneously forces a series of coils either ON or OFF. it specifies the starting coil address to be forced, the number of coils and the force data to be written in ascending order. A logic 1 forces coil ON and 0 forces coil OFF.
+
+This was my test packet and response using QModMaster:
+
+| Field            | Value | Description |
+|------------------|-------|-------------|
+| Slave Address    | 01    | Target slave device |
+| Function Code    | 0F    | Write Multiple Coils |
+| Start Addr Hi    | 00    | High byte of start address |
+| Start Addr Lo    | 00    | Low byte of start address (coil #0) |
+| Quantity Hi      | 00    | High byte of number of coils |
+| Quantity Lo      | 03    | Write 3 coils |
+| Byte Count       | 01    | 1 data byte follows |
+| Coil Values      | 05    | 00000101 → Coil0=ON, Coil1=OFF, Coil2=ON |
+| CRC Lo           | XX    | CRC (low byte) |
+| CRC Hi           | XX    | CRC (high byte) |
+
+
 ---
-![](../images/qmod-write-multiple.png) -> QMODMASTER SIMULATOR
-![](../images/cute-write-multiple.png) -> SERIAL OUTPUT
+![](../images/write-multi-coils.png) 
+
+As seen, the values were read and updated correctly. This validates my write multiple coils function.
+
+
 
 ##### Write single coil
+This is the request I sent to the slave: 
+
+###### Write Single Coil Request (Turn ON Coil 0x0000)
+
+| Field          | Value | Description |
+|----------------|-------|-------------|
+| Slave Address  | 01    | Target slave device |
+| Function Code  | 05    | Write Single Coil |
+| Coil Address Hi| 00    | High byte of coil address |
+| Coil Address Lo| 00    | Low byte of coil address (coil #0) |
+| Value Hi       | FF    | `FF00` = ON |
+| Value Lo       | 00    | — |
+| CRC Lo         | 8C    | CRC (low byte) |
+| CRC Hi         | 3A    | CRC (high byte) |
+
+
 ---
-![](../images/qmod-write-single.png) -> QMODMASTER SIMULATOR
-![](../images/com-write-single.png) -> SERIAL OUTPUT
+![](../images/write-single-coil.png) 
+
+The expected response should be same as the request sent from master. And this can be seen in the above simulation. This validates my write single coil function. 
 
 
 
+## Code decription
 #### Read coils
 I simulated the read coils function and the following was the response:
 
