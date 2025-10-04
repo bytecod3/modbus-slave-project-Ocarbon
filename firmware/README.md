@@ -169,9 +169,7 @@ I have tested and validated this code/functions with actual hardware expander ch
 If, however, PLC ladder logic is needed and used, the following block diagram represents how I would wire the PLCs for relat control: 
 
 ### PLC ladder logic
-
-[todo]
-
+![](../images/plc.png)
 
 # 2. MODBUS RTU
 
@@ -563,41 +561,22 @@ The block diagram below explains this part:
 
 Since the slave device exposes a direct Ethernet connection, it can be directly connected to a Network switch then routed to diagnostics tool etc. 
 
-Additionally, a MODBUS-RTU to MODBUS-ETHERNET converter can be used to mate MOodBus RTU packets to ModBus TCP packets for use in the diagnostics tool.
+Additionally, a MODBUS-RTU to MODBUS-ETHERNET converter can be used to mate ModBus RTU packets to ModBus TCP packets for use in the diagnostics tool.
 
 ## Ethernet connectivity on STM32
-Since STM32F401CCU6 does not have internal MAC, I switched to STM32F407IEH6 which has internal MAC. This is purely to demonstrate ethernet setup. 
+Since STM32F401CCU6 does not have internal MAC, I inted to use the popular W5500 IC from WizNet that integrates ethernet: It has the following features: 
 
-```c
-Note: This ethernet setup and code is untested, I will admit that at this point because I do not have live testing of this ethernet section as I build, it is hard to remain accurate with 100% confidence. However, it should work with minimal modification and/or porting.
+- BUilt in TCP/IP
+- Communicates over SPI interface 
+- Supports 10/100 Mbps
+- 32KB internal memory 
+- can use both foxed length data mode and variable length data mode (allowing other devices to use the same SPI bus)
+- Has a library from manufacture to handle sockets
 
-```
+And since this IC has intena TCP/IP, a lot of firmware work is offloaded from the MCU, saving memory and perfomance.  
+All I have to do is read and write fucntions to ethernet via SPI HAL drivers.
 
-The steps below show this setup: 
-
-1. Setting up the RMII interface
-I use the RMII interface for interfacing MAC and ethernet PHY chip. 
-
-![](../images/RMII-1.png)
-
-2. The STM32 Board does not allow confiiguring of memory addresses so I skipped this part 
-3. RX buffer length was set to 1524 bytes, default setting. 
-4. The memory is allocated in the SRAM region
-5. MAC address was set to 00:80:E1:00:00:00
-
-### LwIP setup 
-I leveraged the Lightweight IP middleware to setup IP functionality. LwIP provides reduced-resource-usage IP protocols for use in embedded systems. LwIP is available as a middleware in the STM32 stack: 
-
-Settings used  to bring LwIp up are as follows: 
-1. DHCP is disabled so that I can assign a static IP address to my device. The IP address was set to 192.168.0.125
-![](../images/ip-address.png)
-2. Heap memory is allocated to 10KB(10240 Bytes) . If the application will send a lot of data that needs to be copied, this should be set high
-
-![](../images/lwip-setup.png)
-
-3. After this I generated the code.
-
-### Ping Test 
+![](../images/ethernet-w5500.png)
 
 
 ### Ethernet schematic excerpt 
@@ -608,6 +587,10 @@ The circuit below shows my circuit excerpt for Ethernet Functionality:
 ![](../schematic-excerpts/ethernet-schematic.png)
 
 W5500 chip will be an SPI slave to the MCU controller. 
+
+
+### Ping Test 
+[todo]
 
 ## TCP/IP control interface with ModBus TCP
 The only difference between ModBus RTU and ModBus TCP is that ModBus TCP embeds the standard ModBus frame packet into a TCP frame that looks like the one below: 
@@ -620,9 +603,68 @@ My approach to implement the interface to handle ModBus TCP is as follows:
 2. Trigger the tcp_receive_callback().
 3. pass payload to ```x_task_modbus_receive_TCP```
 4. process request -> extract function code length etc...
-5. build a reply 
+5. build a reply
 6. send back reply via ```modbus_TCP_send_response()```
 
+Here is a code snippet for ModBus TCP function:
+
+```c
+
+void x_task_receive_modbus_TCP(void const* arguments) {
+	Modbus_tcp_type_t modbus_tcp_pkt;
+	uint8_t modbus_tcp_response[MODBUS_TCP_MAX_SIZE];
+	uint16_t response_len = 0;
+
+	for(;;) {
+		/* peek from ModBus TCP queue */
+		if(xQueuePeek(modbus_TCP_queue_handle, &modbus_tcp_pkt, portMAX_DELAY) == pdPASS) { // todo: remove MAX delay
+
+			if(modbus_tcp_pkt.len < 8) {  /* MBAP header(7 bytes) + function(1 byte) is 8 bytes todo: get this length from the function receiving the TCP packet */
+				continue;				/* ignore and jump to the next iteration of the loop */
+			}
+
+			uint16_t transaction_id = (modbus_tcp_pkt.data[0] << 8) | (modbus_tcp_pkt.data[1]); ///< MBAP valyes
+			uint16_t protocol_id = (modbus_tcp_pkt.data[2] << 8) | (modbus_tcp_pkt.data[3]);
+			uint16_t length_id = (modbus_tcp_pkt.data[4] << 8) | (modbus_tcp_pkt.data[5]);
+			uint8_t unit_id = modbus_tcp_pkt.data[6];  // slave ID
+
+			uint8_t function_code = modbus_tcp_pkt.data[7];		///< Protocol Data Unit (PDU)
+			uint8_t* modbus_data = &modbus_tcp_pkt.data[8];
+
+			// get the length of the PDU
+			uint16_t pdu_len = modbus_tcp_pkt.len - 7; // MBAP is 7 bytes
+
+			// check and operate on the function code
+			// this is the length of the PDU only
+			//response_len = modbus_tcp_handle(function_code, pdu_data, pdu_length, response);
+
+			// build back the header (7 bytes)
+			modbus_tcp_response[0] = transaction_id >> 8; // hi byte
+			modbus_tcp_response[1] = transaction_id  & 0xFF; // lo byte
+			modbus_tcp_response[2] = 0x00;					// protocol ID is 0 always
+			modbus_tcp_response[3] = 0x00;
+			modbus_tcp_response[4] = (response_len + 1) >> 8;
+			modbus_tcp_response[5] = (response_len + 1) & 0xFF;
+			modbus_tcp_response[6] = unit_id; // slave ID
+
+			// get the total length of the packet including MBAP header
+			uint16_t total_length = response_len + 7;
+
+			// todo: send back this response to master
+			//modbus_tcp_send_response();
+
+			// send response via ModBus TCP
+		} else {
+			// todo: error/debug
+		}
+
+		// update event bit
+		//xEventGroupSetBits(modbus_TCP_event_group_handle, )
+	}
+}
+
+
+```
 
 # Concurrency management with FreeRTOS
 For concurrence management, the following tasks were defined at a minimum:
@@ -648,14 +690,6 @@ The data that I collect is:
 
 The inbuilt chip parameters can be enabled or disabled by setting the ```GET_INTERNAL_PARAMETERS``` to 0 in the ```custom_config.h``` file.
 
-[add code]
-
-## Task 2: ModBus RTU task
-The code snippet below shows the MODBUS RTU task. 
-
-## Task 3: Modbus TCP task
-
-
 ## Task 3: Ethernet communication task 
 
 ## Task 4: System monitoring task
@@ -664,7 +698,7 @@ The code snippet below shows the MODBUS RTU task.
 
 The biggest factor that affected my priority table was how critical the task  is going to be. Because I am using ISR to receive MODBUS RTU on uart, I need the queueus receiving this data to be as fast as possible to prevent blocking: 
 
-x_task_modbus_dispatcherv: I set this as priority high  (osPriorityHigh)
+x_task_modbus_dispatcher: I set this as priority high  (osPriorityHigh)
 because it is the first consumer of the ISR data frame. It should quickly dispatch the data to consumers so that queues dont throttle. Making it high priority so that it runs immediately after ISR fires. 
 
 x_task_receive_modbus_RTU: osPriorityAboveNormal  
@@ -718,7 +752,7 @@ However, this works for low traffic, and there is tight coupling between clean_u
 
 This led me to use the dispatcher model of task/queue synchronization: 
 
-### Queue dispatcher model 
+### Queue dispatcher model
 This is a simple model that basically creates a dispatcher queue to make sure items are removed from data queue being filled by the ISR as fast as possible, to prevent blocking/queue throttling. 
 
 In the dispatcher task, I copy the received message from the modbusRTU and send it to consumers per queue. Each consumer has its own queue just because the tasks here are few.
@@ -757,6 +791,41 @@ A single task monitors the state and for now just changes the LED blink time
 
 Ideally, I would develop a custom query reporting packet fetch for the device, such that if it enters fault state, It can easily accept my diagnostics commands to return what registers/log values failed etc. 
 
+The FSM state diagram may look as this one. But can be improved for more detailed and child state:
+
+![](../images/fsm.png)
+
+This is a code snippet of this: 
+
+```c
+void x_task_led_blink(void const* argument) {
+	/* create a local copy to shadow the overall system state */
+	system_state_t lcl_state = system_state;
+	unsigned long blink_time = 0;
+
+	for(;;) {
+
+		switch (system_state) {
+		case STATE_NOMINAL:
+			blink_time = 1500;
+			break;
+		case STATE_FAULT:
+			blink_time = 200;
+			break;
+
+		default:
+			blink_time = 1500;
+			break;
+
+		}
+
+		HAL_GPIO_TogglePin(user_led_GPIO_Port, user_led_Pin, blink_time);
+
+	}
+}
+
+```
+
 
 ### Onboard fault state indicator
 I used a simple unicolor LED indicator to signify when the slave device is operation okay and in fault. 
@@ -778,10 +847,24 @@ Please note that this is not is optimized UI diaganostics as more can be done on
 
 # Testing and Validation plan
 
-### Stress test plan
-To stess this board, I would go with Uptime calculation. This is outlined below:
-1. After compiling and tesing code locally. Code is uploaded to electrically tested PCBs.
-2. The system start time is logged manually. Also, the system start time is logged onboard the device. The system maintains a
+### Unit testing
+To do unit testing, I would do the following: 
+
+1. Testing the frame parsing for RTU and TCP frames - this has been done partially above 
+2. Function code handling to verify responses fir supported functions 
+3. Buffer and memory checks - I would test queue depths under load
+4. Checking freeRTOS watermarks, heap use and watchdog servicing 
+
+### Integration testing
+1. Injetcing known frames via RTU to verify output responses 
+2. Sending MODBUS TCP packet requests via multiple consurrent clients 
+3. I would validate my TCP dissassembly and reassembly logic 
+4. Relay/Coils control feedback - I wiuld issue coi write requests, confrim GPIO toggling etc maybe with a logic analyzer
+
+### Environmental and stress testing 
+1. Long cable runs since this is modbus 
+2. Temperature injections 
+3. Power cycling to see if the system will maintain state etc
 
 
 ### Todos/feature list

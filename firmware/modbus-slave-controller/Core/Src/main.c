@@ -28,6 +28,7 @@
 #include "custom_types.h"
 #include "string.h"
 #include "stdio.h"
+#include "state_machine.h"
 #include "defines.h"
 #include "relays.h" // todo: create a task to control the relays
 #include "modbus_rtu.h"
@@ -50,6 +51,14 @@
 int modbus_rx_len = 0; // actual received modbus message length
 uint8_t modbus_rx_message[MODBUS_RTU_MAX_SIZE] = {0}; // to hold the received modbus message
 char uart_buff[10] = {0}; // for debug
+
+
+/**
+ * Device state machine
+ * system starts in nominal mode unless something puts it into fault mode
+ * Fault can
+ */
+Device_state_t system_state = STATE_NOMINAL;
 
 
 /* USER CODE END PD */
@@ -75,6 +84,7 @@ osThreadId x_task_get_device_diagnostics_handle;
 osThreadId x_task_print_to_terminal_handle;
 osThreadId x_task_clean_modbus_RTU_queue_handle;
 osThreadId x_task_modbus_RTU_dispatcher_handle;
+osThreadId x_task_led_blink_handle;
 
 //============ DATA QUEUE HANDLES  ============
 QueueHandle_t modbus_RTU_queue_handle;
@@ -156,6 +166,7 @@ void x_task_get_device_diagnostics(void const* argument);
 void x_task_print_to_terminal(void const* argument);
 void x_task_clean_modbus_RTU_queue(void const* argument);
 void x_task_modbus_RTU_dispatcher(void const* argument);
+void x_task_led_handle(void const* argument);
 
 
 /* USER CODE END PFP */
@@ -323,6 +334,9 @@ int main(void)
 
   osThreadDef(RTU_msg_dispatcher, x_task_modbus_RTU_dispatcher, osPriorityNormal, 0, 128); /* task to forward received MODBUS RTU message to consumers */
   x_task_modbus_RTU_dispatcher_handle = osThreadCreate(osThread(RTU_msg_dispatcher), NULL);
+
+  osThreadDef(led_blink, x_task_led_blink, osPriorityLow, 0, 128); /* task to blink LED based on the system state (fault or nominal) */
+  x_task_led_blink_handle = osThreadCreate(osThread(led_blink), NULL);
 
 
   // todo -> check successful task creation
@@ -672,7 +686,6 @@ void x_task_receive_modbus_RTU(void const* argument) {
 /**
  * @brief This task receives MODBUS data via MODBUS TCP
  */
-
 void x_task_receive_modbus_TCP(void const* arguments) {
 	Modbus_tcp_type_t modbus_tcp_pkt;
 	uint8_t modbus_tcp_response[MODBUS_TCP_MAX_SIZE];
@@ -806,6 +819,35 @@ void x_task_modbus_RTU_dispatcher(void const * arguments) {
 		/* todo: check for successful queue send */
 		xQueueSend(modbus_RTU_queue_handle, &modbus_pkt, 1000);
 		xQueueSend(modbus_RTU_print_to_terminal_queue_handle, &modbus_pkt, 1000);
+
+	}
+}
+
+/**
+ * @brief blink LED based on the system state
+ */
+void x_task_led_blink(void const* argument) {
+	/* create a local copy to shadow the overall system state */
+	system_state_t lcl_state = system_state;
+	unsigned long blink_time = 0;
+
+	for(;;) {
+
+		switch (system_state) {
+		case STATE_NOMINAL:c
+			blink_time = 1500;
+			break;
+		case STATE_FAULT:
+			blink_time = 200;
+			break;
+
+		default:
+			blink_time = 1500;
+			break;
+
+		}
+
+		HAL_GPIO_TogglePin(user_led_GPIO_Port, user_led_Pin, blink_time);
 
 	}
 }
