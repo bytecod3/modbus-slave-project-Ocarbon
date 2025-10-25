@@ -7,43 +7,42 @@ Prepared by: Edwin Mwiti
 Submission for: Control and Instrumentation Engineer - Intern
 
 ## Table of Contents 
-1. Introduction 
-2. Functional requirements 
-3. Relay control 
-4. Industry standard relay control interface and schematic
-Relay power supply 
-5. Relay control logical organization 
-6. IO expander driver 
-7. Relay driver interface 
-8. Relay control abstraction levels
-9. Scalability of the relay controls
-10. Relay Testing and validation
-11. ModBuS RTU
-12. RS485 transceiver schematic
-13. RS485 transceiver schematic Improvement
-14. RS485 hardware driver API
-15. Handling unknown ModBus data length
-16. Compatibity with S7-1200
-17. ModBus testing and validation with QModMaster
-18. Ethernet Connectivity
-19. TCP/IP control interface with ModBus TCP
-20. Ethernet stack configuration
-21. Concurrency management with FreeRTOS
-22. Priority table and logic behind it
-23. Interrupt vector Priority
-24. Inter-task communication
-25. Memory management strategy
-26. Synchronization methods used
-27. Feedback and diagnostics 
-28. Fault detection mechanism 
-29. Onboard fault state indicator
-30. Testing and Validation plan
-31. Stress Testing plan
-32. Additional feature list
-33. References and schemas
+1. [Introduction](#introduction)
+2. [Functional requirements](#functional-requirements)
+3. [Relay control](#1relay-control)
+4. [Industry standard relay control interface and schematic](#industry-standard-relay-control--hardware)
+5. [Relay power supply](#relay-power-supply)
+6. [Relay control logical organization](#relay-logical-organization)
+7. [IO expander driver](#io-expander-driver)
+8. [Relay driver interface](#relay-driver-api)
+9. [Relay control abstraction levels](#relay-abstraction)
+10. [Scalability of the relay controls](#scalability-of-the-relay-controls)
+11. [Relay Testing and validation](#relay-testing-and-validation)
+12. [ModBuS RTU](#2-modbus-rtu)
+13. [RS485 transceiver schematic](#rs485-transceiver-schematic)
+14. [RS485 transceiver schematic Improvement](#rs485-transceiver-schematic-improvement)
+15. [RS485 hardware driver API](#rs485-hardware-driver-api)
+16. [Handling unknown ModBus data length](#handling-unknown-modbus-data-length)
+17. [Compatibity with S7-1200](#compatibility-with-s7-1200)
+18. [ModBus testing and validation with QModMaster](#modbus-testing-and-validation-with-qmodmaster)
+19. [Ethernet Connectivity](#ethernet-connectivity)
+20. [TCP/IP control interface with ModBus TCP](#tcpip-control-interface-with-modbus-tcp)
+21. [Ethernet stack configuration](#ethernet-stack-configuration)
+22. [Concurrency management with FreeRTOS](#concurrency-management-with-freertos)
+23. [Priority table and logic behind it](#priority-table-and-logic-behind-it)
+24. [Interrupt vector Priority](#inter)
+25. [Inter-task communication](#inter-task-communication)
+26. [Memory management strategy](#memory-management-strategy)
+27. [Synchronization methods used](#synchronization-methods-used)
+28. [Feedback and diagnostics](#feedback-and-diagnostics)
+29. [Fault detection mechanism](#fault-detection-mechanism)
+30. [Onboard fault state indicator](#onboard-fault-state-indicator)
+31. [Testing and Validation plan](#testing-and-validation-plan)
+33. [Todo feature list](#todosfeature-list)
+34. [References and schemas](#references)
 
 
-### Introduction
+# Introduction
 Based on the problem statement, this device is a slave device because it implements slave functions especially the MODBUS register read and write. i.e:
 - Read coils
 - Write single coil
@@ -52,6 +51,12 @@ Based on the problem statement, this device is a slave device because it impleme
 Also, I figured that because it has relays, these relay are to be controlled by another device (MASTER device) via the MODBUS RTU. And this master device is the SIEMENS S7-1200.
 
 Also this slave exposes its port/URL via ethernet. So data can be transferred, logged etc..
+
+
+### This code can be found in the following path:  
+```c
+/firmware/modbus-slave-controller
+```
 
 ## Functional Requirements
 # 1.Relay Control
@@ -150,7 +155,7 @@ void relay_clear_bank(uint8_t bank);
 The functions are pretty quite well documented on the files themselves.
 
 
-#### Abstraction levels
+#### Relay abstraction
 To meet hardware abstraction, the MCP23017 is only visible through the relay driver APIs, since that is the only user. This diagram shows the abstraction:
 
 ![relay-abstraction](../images/relay-abstraction.png)
@@ -160,7 +165,7 @@ Now, because I used an I2C expander, the MCP23017 has 3 address bits(A0,A1, A2),
 Scaling the Relay control class is as "simple" adding another MCP23017 IC and hardware-configuring the address.
 On the software side, the driver remains the same, but if we add more relays we need to add more banks. SHould be trivial. Rather, this was my approach.
 
-## Testing and validation
+## Relay Testing and validation
 I have tested and validated this code/functions with actual hardware expander chip and STM32F401CCU6, the following tests have been carried out:
     - STM32F401CCU6 code compilation
     - MCP23017 Driver GPIO expansion

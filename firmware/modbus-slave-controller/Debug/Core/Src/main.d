@@ -1,4 +1,4 @@
-Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/modbus_rtu.h \
+Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h \
  ../Core/Inc/stm32f4xx_hal_conf.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h \
@@ -29,7 +29,6 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/modbus_rtu.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h \
  ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h \
- ../Core/Inc/defines.h ../Core/Inc/main.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h \
  ../Core/Inc/FreeRTOSConfig.h \
@@ -48,9 +47,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/modbus_rtu.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h \
  ../Core/Inc/custom_types.h ../Core/Inc/custom_config.h \
- ../Core/Inc/defines.h ../Core/Inc/relays.h ../Core/Inc/custom_types.h \
- ../Core/Inc/mcp23017.h ../Core/Inc/modbus_tcp.h ../Core/Inc/modbus.h
-../Core/Inc/modbus_rtu.h:
+ ../Core/Src/state_machine.h ../Core/Inc/defines.h ../Core/Inc/relays.h \
+ ../Core/Inc/custom_types.h ../Core/Inc/mcp23017.h \
+ ../Core/Inc/modbus_rtu.h ../Core/Inc/defines.h ../Core/Inc/modbus.h
+../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 ../Core/Inc/stm32f4xx_hal_conf.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h:
@@ -81,8 +81,6 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/modbus_rtu.h \
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h:
-../Core/Inc/defines.h:
-../Core/Inc/main.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h:
 ../Core/Inc/FreeRTOSConfig.h:
@@ -102,9 +100,11 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/modbus_rtu.h \
 ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h:
 ../Core/Inc/custom_types.h:
 ../Core/Inc/custom_config.h:
+../Core/Src/state_machine.h:
 ../Core/Inc/defines.h:
 ../Core/Inc/relays.h:
 ../Core/Inc/custom_types.h:
 ../Core/Inc/mcp23017.h:
-../Core/Inc/modbus_tcp.h:
+../Core/Inc/modbus_rtu.h:
+../Core/Inc/defines.h:
 ../Core/Inc/modbus.h:

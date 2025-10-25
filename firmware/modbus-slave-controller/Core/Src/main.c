@@ -19,7 +19,6 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include <modbus_rtu.h>
 #include "main.h"
 #include "cmsis_os.h"
 
@@ -32,7 +31,11 @@
 #include "defines.h"
 #include "relays.h" // todo: create a task to control the relays
 #include "modbus_rtu.h"
+
+#if MODBUS_TCP_ENABLE
 #include "modbus_tcp.h"
+#endif
+
 #include "modbus.h"
 
 /* USER CODE END Includes */
@@ -77,7 +80,10 @@ UART_HandleTypeDef huart2;
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 osThreadId x_task_receive_modbus_RTU_handle;
+
+#if MODBUS_TCP_ENABLE
 osThreadId x_task_receive_modbus_TCP_handle;
+#endif
 osThreadId x_task_relay_control_handle;
 osThreadId x_task_ethernet_control_handle;
 osThreadId x_task_get_device_diagnostics_handle;
@@ -88,7 +94,11 @@ osThreadId x_task_led_blink_handle;
 
 //============ DATA QUEUE HANDLES  ============
 QueueHandle_t modbus_RTU_queue_handle;
+
+#if MODBUS_TCP_ENABLE
 QueueHandle_t modbus_TCP_queue_handle;
+#endif
+
 QueueHandle_t modbus_RTU_dispatcher_queue_handle;
 QueueHandle_t modbus_RTU_print_to_terminal_queue_handle;
 
@@ -159,7 +169,10 @@ void modbus_reply(char* msg, uint16_t length);
  *
  */
 void x_task_receive_modbus_RTU(void const* argument);
+#if MODBUS_TCP_ENABLE
 void x_task_receive_modbus_TCP(void const* argument);
+#endif
+
 void x_task_relay_control(void const* argument);
 void x_task_ethernet_control(void const* argument);
 void x_task_get_device_diagnostics(void const* argument);
@@ -167,7 +180,7 @@ void x_task_print_to_terminal(void const* argument);
 void x_task_clean_modbus_RTU_queue(void const* argument);
 void x_task_modbus_RTU_dispatcher(void const* argument);
 void x_task_led_handle(void const* argument);
-
+void x_task_led_blink(void const* argument);
 
 /* USER CODE END PFP */
 
@@ -278,6 +291,7 @@ int main(void)
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS RTU queue failed to create\r\n", strlen("MODBUS RTU queue failed to create\r\n"), HAL_MAX_DELAY);
   }
 
+#if MODBUS_TCP_ENABLE
   modbus_TCP_queue_handle = xQueueCreate(5, sizeof(Modbus_tcp_type_t));
 
   if(modbus_TCP_queue_handle != NULL) {
@@ -293,6 +307,7 @@ int main(void)
   } else {
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS dispatcher queue failed to create\r\n", strlen("MODBUS dispatcher queue failed to create\r\n"), HAL_MAX_DELAY);
   }
+#endif
 
   modbus_RTU_print_to_terminal_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t));
   if(modbus_RTU_print_to_terminal_queue_handle != NULL) {
@@ -311,31 +326,33 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 
-  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
-  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
+//  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
+//  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
+//
+//  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityIdle+ 5 , 0, 2048); // task to receive MODBUS data
+//  x_task_receive_modbus_RTU_handle = osThreadCreate(osThread(receive_modbus_RTU), NULL);
 
-  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityIdle+ 5 , 0, 2048); // task to receive MODBUS data
-  x_task_receive_modbus_RTU_handle = osThreadCreate(osThread(receive_modbus_RTU), NULL);
-
+#if MODBUS_TCP_ENABLE
   osThreadDef(receive_modbus_TCP, x_task_receive_modbus_TCP, osPriorityIdle + 3, 0, 128); // task to receive data via MODBUS TCP
   x_task_receive_modbus_TCP_handle = osThreadCreate(osThread(receive_modbus_TCP), NULL);
+#endif
 
-  osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 1024); // task to print to UART if using UART debug
-  x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
+//  osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 1024); // task to print to UART if using UART debug
+//  x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
+//
+////  /* osThreadDef(clean_modbus_queue, x_task_clean_modbus_RTU_queue, osPriorityNormal, 0, 128); // task to dequeue items from MODBUS RTU task */
+////  /* x_task_clean_modbus_RTU_queue_handle = osThreadCreate(osThread(clean_modbus_queue), NULL); */
+//
+//  osThreadDef(control_relay, x_task_relay_control, osPriorityNormal , 0, 1024); // task to control relays
+//  x_task_relay_control_handle = osThreadCreate(osThread(control_relay), NULL);
+//
+////  osThreadDef(ethernet_control, x_task_ethernet_control, osPriorityNormal , 0, 1024); // task to control ethernet communicattion
+////  x_task_ethernet_control_handle = osThreadCreate(osThread(ethernet_control), NULL);
+//
+//  osThreadDef(RTU_msg_dispatcher, x_task_modbus_RTU_dispatcher, osPriorityNormal, 0, 128); /* task to forward received MODBUS RTU message to consumers */
+//  x_task_modbus_RTU_dispatcher_handle = osThreadCreate(osThread(RTU_msg_dispatcher), NULL);
 
-//  /* osThreadDef(clean_modbus_queue, x_task_clean_modbus_RTU_queue, osPriorityNormal, 0, 128); // task to dequeue items from MODBUS RTU task */
-//  /* x_task_clean_modbus_RTU_queue_handle = osThreadCreate(osThread(clean_modbus_queue), NULL); */
-
-  osThreadDef(control_relay, x_task_relay_control, osPriorityNormal , 0, 1024); // task to control relays
-  x_task_relay_control_handle = osThreadCreate(osThread(control_relay), NULL);
-
-//  osThreadDef(ethernet_control, x_task_ethernet_control, osPriorityNormal , 0, 1024); // task to control ethernet communicattion
-//  x_task_ethernet_control_handle = osThreadCreate(osThread(ethernet_control), NULL);
-
-  osThreadDef(RTU_msg_dispatcher, x_task_modbus_RTU_dispatcher, osPriorityNormal, 0, 128); /* task to forward received MODBUS RTU message to consumers */
-  x_task_modbus_RTU_dispatcher_handle = osThreadCreate(osThread(RTU_msg_dispatcher), NULL);
-
-  osThreadDef(led_blink, x_task_led_blink, osPriorityLow, 0, 128); /* task to blink LED based on the system state (fault or nominal) */
+  osThreadDef(led_blink, x_task_led_blink, osPriorityNormal, 0, 128); /* task to blink LED based on the system state (fault or nominal) */
   x_task_led_blink_handle = osThreadCreate(osThread(led_blink), NULL);
 
 
@@ -525,7 +542,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(DE_RE_PIN_GPIO_Port, DE_RE_PIN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(ISR_DBG_LED_GPIO_Port, ISR_DBG_LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_OK_Pin|GPIO_ERROR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : user_led_Pin */
   GPIO_InitStruct.Pin = user_led_Pin;
@@ -541,12 +558,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(DE_RE_PIN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : ISR_DBG_LED_Pin */
-  GPIO_InitStruct.Pin = ISR_DBG_LED_Pin;
+  /*Configure GPIO pins : GPIO_OK_Pin GPIO_ERROR_Pin */
+  GPIO_InitStruct.Pin = GPIO_OK_Pin|GPIO_ERROR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(ISR_DBG_LED_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -562,8 +579,6 @@ static void MX_GPIO_Init(void)
  * @param args parameter to the task
  */
 void x_task_get_device_diagnostics(void const* args) {
-
-
 	for(;;) {
 		diagnostics.chip_parameters.uid[0] = HAL_GetUIDw0();		// read the chip's UID
 		diagnostics.chip_parameters.uid[0] = HAL_GetUIDw0();
@@ -611,7 +626,6 @@ void x_task_print_to_terminal(void const* arguments ) {
 			for(size_t i=0; i < pkt_len; i++) {
 				printf("%02X ", modbus_packet.data[i]);
 			}
-
 			printf("\r\n");
 
 		}
@@ -630,7 +644,6 @@ void send_modbus_data_to_UART1(char* msg) {
 
 void MODBUS_send_response(uint8_t* response, uint16_t len) {
 	HAL_UART_Transmit(&huart2, response, len, HAL_MAX_DELAY);
-
 }
 
 /**
@@ -683,6 +696,7 @@ void x_task_receive_modbus_RTU(void const* argument) {
 
 }
 
+#if MODBUS_TCP_ENABLE
 /**
  * @brief This task receives MODBUS data via MODBUS TCP
  */
@@ -692,11 +706,11 @@ void x_task_receive_modbus_TCP(void const* arguments) {
 	uint16_t response_len = 0;
 
 	for(;;) {
-		// peek from ModBus TCP queue
+		/* peek from ModBus TCP queue */
 		if(xQueuePeek(modbus_TCP_queue_handle, &modbus_tcp_pkt, portMAX_DELAY) == pdPASS) { // todo: remove MAX delay
 
-			if(modbus_tcp_pkt.len < 8) {  // MBAP header(7 bytes) + function(1 byte) is 8 bytes todo: get this length from the function receiving the TCP packet
-				continue;				// ignore and jump to the next iteration of the loop
+			if(modbus_tcp_pkt.len < 8) {  /* MBAP header(7 bytes) + function(1 byte) is 8 bytes todo: get this length from the function receiving the TCP packet */
+				continue;				/* ignore and jump to the next iteration of the loop */
 			}
 
 			uint16_t transaction_id = (modbus_tcp_pkt.data[0] << 8) | (modbus_tcp_pkt.data[1]); ///< MBAP valyes
@@ -738,7 +752,7 @@ void x_task_receive_modbus_TCP(void const* arguments) {
 		//xEventGroupSetBits(modbus_TCP_event_group_handle, )
 	}
 }
-
+#endif
 
 /**
  * @brief Reply to MODBUS Master
@@ -828,27 +842,12 @@ void x_task_modbus_RTU_dispatcher(void const * arguments) {
  */
 void x_task_led_blink(void const* argument) {
 	/* create a local copy to shadow the overall system state */
-	system_state_t lcl_state = system_state;
-	unsigned long blink_time = 0;
+	//Device_state_t local_state = system_state;
+//	unsigned long blink_time = 0;
 
 	for(;;) {
-
-		switch (system_state) {
-		case STATE_NOMINAL:c
-			blink_time = 1500;
-			break;
-		case STATE_FAULT:
-			blink_time = 200;
-			break;
-
-		default:
-			blink_time = 1500;
-			break;
-
-		}
-
-		HAL_GPIO_TogglePin(user_led_GPIO_Port, user_led_Pin, blink_time);
-
+		HAL_GPIO_TogglePin(GPIO_ERROR_GPIO_Port, GPIO_ERROR_Pin);
+		vTaskDelay(pdMS_TO_TICKS(1500));
 	}
 }
 
@@ -907,6 +906,9 @@ void StartDefaultTask(void const * argument)
   for(;;)
   {
     osDelay(1);
+    HAL_GPIO_TogglePin(GPIO_OK_GPIO_Port, GPIO_OK_Pin);
+    HAL_Delay(pdMS_TO_TICKS(500));
+
   }
   /* USER CODE END 5 */
 }
