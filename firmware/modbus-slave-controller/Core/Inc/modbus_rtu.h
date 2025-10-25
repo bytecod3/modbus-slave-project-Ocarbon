@@ -11,6 +11,22 @@
 #include "stm32f4xx_hal.h"
 #include "defines.h"
 
+#define SLAVE_ID 0x01					///< This device's slave ID
+
+/*
+ * slave holding registers
+ */
+#define NUM_HOLDING_REGISTERS (10)
+extern uint16_t holding_registers[];
+
+#define firmware_version_holding_reg	(0x00) // maps to 40001
+#define device_id_holding_reg			(0x02) // maps to 40003
+
+/**
+ * @brief This function create and initializes holding registers
+ */
+void modbus_rtu_init_holding_regs(uint16_t holding_regs[], int size);
+
 
 /**
  * @brief typedef for MODBUS data

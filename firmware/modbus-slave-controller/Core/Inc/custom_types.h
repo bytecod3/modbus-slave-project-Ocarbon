@@ -42,8 +42,6 @@ typedef struct diagnostics {
 //	Heap
 //#endif
 
-
-
 } diagnostics_type_t;
 
 

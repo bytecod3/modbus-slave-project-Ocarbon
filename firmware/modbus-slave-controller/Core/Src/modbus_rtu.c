@@ -8,6 +8,29 @@
 #include <modbus_rtu.h>
 
 /**
+ * create holding registers
+ */
+uint16_t holding_registers[NUM_HOLDING_REGISTERS];
+
+/**
+ * @brief This function create and initializes holding registers
+ * Register Map todo: create register map
+ *
+ *
+ *
+ */
+void modbus_rtu_init_holding_regs(uint16_t holding_regs[], int size) {
+
+	// firmware version
+	holding_regs[0] = FIRMWARE_VERSION;
+	holding_regs[1] = SLAVE_ID;
+
+	for(int i = 3; i < size; i++) {
+		holding_regs[i] = 0;
+	}
+}
+
+/**
  * @brief this function initializes the MAX485 instance
  */
 void MAX485_init(MAX485_instance inst, uint8_t pin) {

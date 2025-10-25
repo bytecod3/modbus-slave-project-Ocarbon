@@ -255,6 +255,9 @@ int main(void)
 //  HAL_UART_Transmit(&huart1, (uint8_t*)"=======MODBUS SLAVE DEVICE======= \r\n\n", strlen("=======MODBUS SLAVE DEVICE======= \r\n\n"), HAL_MAX_DELAY);
 //  HAL_Delay(1000);
 
+  /* initialize modbus holding registers */
+  modbus_rtu_init_holding_regs(holding_registers, NUM_HOLDING_REGISTERS);
+
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -326,9 +329,9 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 
-//  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
-//  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
-//
+  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
+  x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
+
 //  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityIdle+ 5 , 0, 2048); // task to receive MODBUS data
 //  x_task_receive_modbus_RTU_handle = osThreadCreate(osThread(receive_modbus_RTU), NULL);
 
@@ -600,6 +603,9 @@ void x_task_get_device_diagnostics(void const* args) {
 				diagnostics.minimum_ever_free_heap_size
 		);
 
+		// save this data into a holding register
+
+
 
 		vTaskDelay(pdMS_TO_TICKS(10));
 
@@ -647,7 +653,7 @@ void MODBUS_send_response(uint8_t* response, uint16_t len) {
 }
 
 /**
- * @brief THis task receives MODBUS data from the master and parses it
+ * @brief This task receives MODBUS data from the master and parses it
  */
 void x_task_receive_modbus_RTU(void const* argument) {
 	ModBus_RTU_type_t modbus_message;
