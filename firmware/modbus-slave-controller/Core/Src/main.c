@@ -137,17 +137,17 @@ void StartDefaultTask(void const * argument);
  * ====================== Function prototypes ===========================
  */
 
-//#ifdef __GNUC__
-//  int __io_putchar(int ch) {
-//      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-//      return ch;
-//  }
-//#else
-//  int fputc(int ch, FILE *f) {
-//      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-//      return ch;
-//  }
-//#endif
+#ifdef __GNUC__
+  int __io_putchar(int ch) {
+      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+      return ch;
+  }
+#else
+  int fputc(int ch, FILE *f) {
+      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+      return ch;
+  }
+#endif
 
 /**
  * @brief Function to print to console
@@ -291,7 +291,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-  modbus_RTU_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t)); // todo: check for successful creation
+  modbus_RTU_queue_handle = xQueueCreate(5, sizeof(ModBus_RTU_type_t)); // todo: check for successful creation
 
   if(modbus_RTU_queue_handle != NULL) {
 	  //UART_print("MODBUS queue created OK");
@@ -312,7 +312,7 @@ int main(void)
   }
 #endif
 
-  modbus_RTU_dispatcher_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t));
+  modbus_RTU_dispatcher_queue_handle = xQueueCreate(5, sizeof(ModBus_RTU_type_t));
   if(modbus_RTU_dispatcher_queue_handle != NULL) {
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS dispatcher queue created OK\r\n", strlen("MODBUS dispatcher queue created OK\r\n"), HAL_MAX_DELAY);
   } else {
@@ -320,7 +320,7 @@ int main(void)
   }
 
 
-  modbus_RTU_print_to_terminal_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t));
+  modbus_RTU_print_to_terminal_queue_handle = xQueueCreate(5, sizeof(ModBus_RTU_type_t));
   if(modbus_RTU_print_to_terminal_queue_handle != NULL) {
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS printer queue created OK\r\n", strlen("MODBUS printer queue created OK\r\n"), HAL_MAX_DELAY);
   } else {
@@ -337,11 +337,27 @@ int main(void)
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 
-  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
+  osThreadDef(RTU_msg_dispatcher, x_task_modbus_RTU_dispatcher, 2, 0, 200); /* task to forward received MODBUS RTU message to consumers */
+  x_task_modbus_RTU_dispatcher_handle = osThreadCreate(osThread(RTU_msg_dispatcher), NULL);
+
+  if(x_task_modbus_RTU_dispatcher_handle != NULL) {
+	  UART_print("Created RTU dispatcher task OK\r\n");
+  } else {
+	  UART_print("Failed to create RTU dispatcher task\r\n");
+  }
+
+  osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 200); // task to get the device parameters
   x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
 
-  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityIdle+ 5 , 0, 2048); // task to receive MODBUS data
+  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityNormal , 0, 200); // task to receive MODBUS data
   x_task_receive_modbus_RTU_handle = osThreadCreate(osThread(receive_modbus_RTU), NULL);
+
+  if(x_task_receive_modbus_RTU_handle != NULL) {
+	  UART_print("Created MODBUS RTU processor task\r\n");
+  } else {
+	  UART_print("Failed to create MODBUS RTU processor task\r\n");
+  }
+
 
 #if MODBUS_TCP_ENABLE
   osThreadDef(receive_modbus_TCP, x_task_receive_modbus_TCP, osPriorityIdle + 3, 0, 128); // task to receive data via MODBUS TCP
@@ -360,8 +376,6 @@ int main(void)
 ////  osThreadDef(ethernet_control, x_task_ethernet_control, osPriorityNormal , 0, 1024); // task to control ethernet communicattion
 ////  x_task_ethernet_control_handle = osThreadCreate(osThread(ethernet_control), NULL);
 
-  osThreadDef(RTU_msg_dispatcher, x_task_modbus_RTU_dispatcher, osPriorityNormal, 0, 128); /* task to forward received MODBUS RTU message to consumers */
-  x_task_modbus_RTU_dispatcher_handle = osThreadCreate(osThread(RTU_msg_dispatcher), NULL);
 
   osThreadDef(led_blink, x_task_led_blink, osPriorityNormal, 0, 128); /* task to blink LED based on the system state (fault or nominal) */
   x_task_led_blink_handle = osThreadCreate(osThread(led_blink), NULL);
@@ -667,8 +681,8 @@ void x_task_receive_modbus_RTU(void const* argument) {
 	uint8_t response[MODBUS_RTU_MAX_SIZE];  // this will hold the slave response back to master
 
 	for(;;) {
-		if(xQueueReceive(modbus_RTU_queue_handle, &modbus_message, portMAX_DELAY) == pdTRUE) {
-			UART_print("Received request from master OK\r\n");
+		if(xQueueReceive(modbus_RTU_queue_handle, &modbus_message, 500) == pdTRUE) {
+			//UART_print("Received request from master OK\r\n");
 			// debug via USART1
 
 //			if(modbus_message.len < 4) continue; // skip this frame its too short
@@ -703,7 +717,7 @@ void x_task_receive_modbus_RTU(void const* argument) {
 			//MODBUS_send_response(response, response_length);
 
 		} else {
-			UART_print("Filed to receive RTU master reques\r\n");
+			UART_print("Failed to receive RTU master request\r\n");
 		}
 
 	}
@@ -830,7 +844,6 @@ void x_task_clean_modbus_RTU_queue(void const* argument) {
 		}
 	};
 
-
 }
 */
 
@@ -839,14 +852,28 @@ void x_task_clean_modbus_RTU_queue(void const* argument) {
  */
 void x_task_modbus_RTU_dispatcher(void const * arguments) {
 	ModBus_RTU_type_t modbus_pkt;
+	UART_print("Modbus dispatcher\r\n");
 
 	for(;;) {
-		xQueueReceive(modbus_RTU_dispatcher_queue_handle, &modbus_pkt, portMAX_DELAY); /* todo: define wait time */
+		if(xQueueReceive(modbus_RTU_dispatcher_queue_handle, &modbus_pkt, 200) == pdTRUE){  /* todo: define wait time */
+			//UART_print("Received RTU packet from UARTEx callback\r\n");
+		} else {
+			//UART_print("Failed to receive RTU packet from UARTEx callback\r\n");
+		}
 
 		/* dispatch the received item to per consumer queues */
 		/* todo: check for successful queue send */
-		xQueueSend(modbus_RTU_queue_handle, &modbus_pkt, 1000);
-		xQueueSend(modbus_RTU_print_to_terminal_queue_handle, &modbus_pkt, 1000);
+		if(xQueueSend(modbus_RTU_queue_handle, &modbus_pkt, 1000) == pdTRUE) {
+			//UART_print("Sent RTU packet to Modbus RTU handler\r\n");
+		} else {
+			//UART_print("Failed to send RTU packet to Modbus RTU handler\r\n");
+		}
+
+		if(xQueueSend(modbus_RTU_print_to_terminal_queue_handle, &modbus_pkt, 1000) == pdTRUE) {
+			//UART_print("Sent RTU packet to print terminal\r\n");
+		} else {
+			//UART_print("Failed to send RTU packet to print terminal\r\n");
+		}
 
 	}
 }
@@ -875,7 +902,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 		ModBus_RTU_type_t msg;
 
 		/* do not use a UART mutex here because this callback behaves like an ISR */
-		HAL_UART_Transmit(&huart1, (uint8_t*)"Data arrived on MODBUS\r\n", strlen("Data arrived on MODBUS\r\n"), 1000);
+		//HAL_UART_Transmit(&huart1, (uint8_t*)"Data arrived on MODBUS\r\n", strlen("Data arrived on MODBUS\r\n"), 1000);
+		UART_print("Data arrived on MODBUS\r\n");
 
 		/* clear the modbus packet buffer */
 		memset(&msg, 0, sizeof(ModBus_RTU_type_t));
@@ -885,9 +913,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 		if(xQueueSendFromISR(modbus_RTU_dispatcher_queue_handle, &msg, &xHigherPriorityTaskWoken) == pdPASS) {
-			HAL_UART_Transmit(&huart1, (uint8_t*)"Sent MODBUS RTU packet to queue from ISR\r\n", strlen("Sent MODBUS RTU packet to queue from ISR\r\n"), 1000);
+			//HAL_UART_Transmit(&huart1, (uint8_t*)"Sent MODBUS RTU packet to queue from ISR\r\n", strlen("Sent MODBUS RTU packet to queue from ISR\r\n"), 1000);
 		} else {
-			HAL_UART_Transmit(&huart1, (uint8_t*)"errQueueFull: Failed to send MODBUS RTU packet to queue from ISR\r\n", strlen("errQueueFull: Failed to send MODBUS RTU packet to queue from ISR\r\n"), 1000);
+			//HAL_UART_Transmit(&huart1, (uint8_t*)"errQueueFull: Failed to send MODBUS RTU packet to queue from ISR\r\n", strlen("errQueueFull: Failed to send MODBUS RTU packet to queue from ISR\r\n"), 1000);
 		}
 
 		// todo: check for failed queue send and log error

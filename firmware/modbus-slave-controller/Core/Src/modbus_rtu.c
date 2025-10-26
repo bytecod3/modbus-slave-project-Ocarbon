@@ -12,7 +12,6 @@
 
 extern UART_HandleTypeDef huart2;
 
-
 /**
  * create holding registers
  */
