@@ -1,5 +1,5 @@
-../Core/Src/modbus_rtu.c:22:6:modbus_rtu_init_holding_regs	2
-../Core/Src/modbus_rtu.c:36:6:MAX485_init	1
-../Core/Src/modbus_rtu.c:43:6:MAX485_enable_transmit	1
-../Core/Src/modbus_rtu.c:49:6:MAX485_enable_receive	1
-../Core/Src/modbus_rtu.c:54:10:MAX485_calculate_CRC	4
+../Core/Src/modbus_rtu.c:28:6:modbus_rtu_init_holding_regs	2
+../Core/Src/modbus_rtu.c:42:6:MAX485_init	1
+../Core/Src/modbus_rtu.c:54:6:MAX485_enable_transmit	1
+../Core/Src/modbus_rtu.c:60:6:MAX485_enable_receive	1
+../Core/Src/modbus_rtu.c:65:10:MAX485_calculate_CRC	4

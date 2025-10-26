@@ -6,6 +6,12 @@
  */
 
 #include <modbus_rtu.h>
+#include "stm32f4xx_hal.h"
+//#include "stm32f4xx_hal_gpio.h"
+#include "main.h"
+
+extern UART_HandleTypeDef huart2;
+
 
 /**
  * create holding registers
@@ -33,8 +39,13 @@ void modbus_rtu_init_holding_regs(uint16_t holding_regs[], int size) {
 /**
  * @brief this function initializes the MAX485 instance
  */
-void MAX485_init(MAX485_instance inst, uint8_t pin) {
-	inst->DE_RE_pin = pin;
+void MAX485_init(MAX485_instance inst) {
+	inst->uart_instance = &huart2;
+	inst->de_port = DE_RE_PIN_GPIO_Port;
+	inst->de_pin = DE_RE_PIN_Pin;
+
+	// set default mode to receive
+	HAL_GPIO_WritePin(inst->de_port, inst->de_pin, GPIO_PIN_RESET);
 }
 
 /**
@@ -42,13 +53,13 @@ void MAX485_init(MAX485_instance inst, uint8_t pin) {
  */
 void MAX485_enable_transmit(MAX485_instance inst) {
 	// write 1 on the DE pin
-	HAL_GPIO_WritePin(inst->DE_RE_PORT, inst->DE_RE_pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(inst->de_port, inst->de_pin, GPIO_PIN_SET);
 
 }
 
 void MAX485_enable_receive(MAX485_instance inst) {
 	// write 1 on the RE pin
-	HAL_GPIO_WritePin(inst->DE_RE_PORT, inst->DE_RE_pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(inst->de_port, inst->de_pin, GPIO_PIN_RESET);
 }
 
 uint16_t MAX485_calculate_CRC(const uint8_t* buf, uint16_t len) {

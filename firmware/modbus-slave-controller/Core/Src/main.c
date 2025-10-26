@@ -115,6 +115,11 @@ EventGroupHandle_t modbus_RTU_event_group_handle;
 diagnostics_type_t diagnostics;
 char uart_tx_buffer[255]; // todo: remove magic buffer size
 
+MAX485 _max485;
+MAX485_instance _max485_driver = &_max485;
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -252,8 +257,9 @@ int main(void)
   HAL_UARTEx_ReceiveToIdle_IT(&huart2, modbus_rx_message, MODBUS_RTU_MAX_SIZE);
 
   UART_print("\r\n======= MODBUS SLAVE DEVICE ======= \r\n");
-//  HAL_UART_Transmit(&huart1, (uint8_t*)"=======MODBUS SLAVE DEVICE======= \r\n\n", strlen("=======MODBUS SLAVE DEVICE======= \r\n\n"), HAL_MAX_DELAY);
-//  HAL_Delay(1000);
+  HAL_Delay(1000);
+
+  MAX485_init(_max485_driver);
 
   /* initialize modbus holding registers */
   modbus_rtu_init_holding_regs(holding_registers, NUM_HOLDING_REGISTERS);
@@ -635,7 +641,6 @@ void x_task_print_to_terminal(void const* arguments ) {
 			printf("\r\n");
 
 		}
-
 	}
 }
 
@@ -660,41 +665,40 @@ void x_task_receive_modbus_RTU(void const* argument) {
 	uint8_t response[MODBUS_RTU_MAX_SIZE];  // this will hold the slave response back to master
 
 	for(;;) {
-
 		if(xQueueReceive(modbus_RTU_queue_handle, &modbus_message, portMAX_DELAY) == pdTRUE) {
 			UART_print("RECEIVED MASTER REQUEST OK\r\n");
 			// debug via USART1
 
-			if(modbus_message.len < 4) continue; // skip this frame its too short
+//			if(modbus_message.len < 4) continue; // skip this frame its too short
 
-			// check CRC
-			uint16_t crc_hi = modbus_message.data[modbus_message.len - 1];
-			uint16_t crc_lo = modbus_message.data[modbus_message.len - 2];
-			uint16_t received_crc = (crc_hi << 8) | crc_lo;
+//			// check CRC
+//			uint16_t crc_hi = modbus_message.data[modbus_message.len - 1];
+//			uint16_t crc_lo = modbus_message.data[modbus_message.len - 2];
+//			uint16_t received_crc = (crc_hi << 8) | crc_lo;
 
 			/* calculate crc and compare */
-			uint16_t calculated_crc = MAX485_calculate_CRC(modbus_message.data, modbus_message.len - 2);
+			//uint16_t calculated_crc = MAX485_calculate_CRC(modbus_message.data, modbus_message.len - 2);
 
-			if(received_crc != calculated_crc) {
-				continue; // ignore bad CRC
-			}
+//			if(received_crc != calculated_crc) {
+//				continue; // ignore bad CRC
+//			}
 
 			/* check if this message is addressed for me */
-			uint8_t received_slave_id = modbus_message.data[0];
-			if((received_slave_id != SLAVE_ID ) && received_slave_id != 0 ) {
-				continue;
-			}
+//			uint8_t received_slave_id = modbus_message.data[0];
+//			if((received_slave_id != SLAVE_ID ) && received_slave_id != 0 ) {
+//				continue;
+//			}
 
 			/* check what function code was received */
-			uint8_t function_code = modbus_message.data[1];
+//			uint8_t function_code = modbus_message.data[1];
 
 			/* todo: check for an array of supported functions */
 
 			/* handle the received function code */
-			uint16_t response_length = MODBUS_handle_function(received_slave_id, function_code, modbus_message.data,  response, MODBUS_RTU);
+//			uint16_t response_length = MODBUS_handle_function(received_slave_id, function_code, modbus_message.data,  response, MODBUS_RTU);
 
 			/* respond to master */
-			MODBUS_send_response(response, response_length);
+			//MODBUS_send_response(response, response_length);
 
 		}
 
@@ -778,7 +782,7 @@ void modbus_reply(char* msg, uint16_t length) {
  */
 void x_task_relay_control(void const* arguments) {
 	for(;;) {
-		// if can take semapahore,
+		// if can take semaphore,
 		// HAL write relay banks
 		//give semaphore
 	}
@@ -869,20 +873,20 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 		UART_print("Data arrived on MODBUS\r\n");
 
 		/* clear the modbus packet buffer */
-		memset(&msg, 0, sizeof(ModBus_RTU_type_t));
-
-		msg.len = Size; 						   // whatever length that has been received
-		memcpy(msg.data, modbus_rx_message, Size); // copy to MODBUS data field
-
-		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-		if(xQueueSendFromISR(modbus_RTU_dispatcher_queue_handle, &msg, &xHigherPriorityTaskWoken) == pdPASS) {
-			UART_print("Sent MODBUS RTU from ISR\r\n");
-		} else {
-			UART_print("Failed to send MODBUS RTU from ISR\r\n");
-		}
+//		memset(&msg, 0, sizeof(ModBus_RTU_type_t));
+//
+//		msg.len = Size; 						   // whatever length that has been received
+//		memcpy(msg.data, modbus_rx_message, Size); // copy to MODBUS data field
+//
+//		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+//		if(xQueueSendFromISR(modbus_RTU_dispatcher_queue_handle, &msg, &xHigherPriorityTaskWoken) == pdPASS) {
+//			UART_print("Sent MODBUS RTU from ISR\r\n");
+//		} else {
+//			UART_print("Failed to send MODBUS RTU from ISR\r\n");
+//		}
 		// todo: check for failed queue send and log error
 
-		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);	// if task waiting for modbus has a higher priority, it will ranm(pre-empt a lower priroty task)
+		//portYIELD_FROM_ISR(xHigherPriorityTaskWoken);	// if task waiting for modbus has a higher priority, it will ranm(pre-empt a lower priroty task)
 
 		// restart the RECEIVE TO idle interrupt
 //		__HAL_UART_CLEAR_IDLEFLAG(&huart2);

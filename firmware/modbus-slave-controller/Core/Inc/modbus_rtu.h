@@ -43,13 +43,13 @@ typedef struct _modbus_packet {
  */
 typedef struct {
 	UART_HandleTypeDef* uart_instance;
-	GPIO_TypeDef* DE_RE_PORT;
-	uint16_t DE_RE_pin;
+	GPIO_TypeDef* de_port;
+	uint16_t de_pin;
 } MAX485;
 
 typedef MAX485* MAX485_instance;
 
-void MAX485_init(MAX485_instance inst, uint8_t DE_RE_pin);
+void MAX485_init(MAX485_instance inst);
 void MAX485_enable_transmit(MAX485_instance inst);
 void MAX485_enable_receive(MAX485_instance inst);
 void MAX485_send(MAX485_instance inst, uint8_t* data, uint16_t len, uint32_t timeout);
