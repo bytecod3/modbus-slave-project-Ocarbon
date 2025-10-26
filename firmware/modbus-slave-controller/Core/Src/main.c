@@ -103,6 +103,7 @@ QueueHandle_t modbus_RTU_dispatcher_queue_handle;
 QueueHandle_t modbus_RTU_print_to_terminal_queue_handle;
 
 // =========== SEMAPHORE HANDLES ===============
+SemaphoreHandle_t uart_print_mutex;
 SemaphoreHandle_t x_relay_control_semaphore;
 
 // ============ EVENT GROUPS =================
@@ -136,22 +137,22 @@ void StartDefaultTask(void const * argument);
  * ====================== Function prototypes ===========================
  */
 
-#ifdef __GNUC__
-  int __io_putchar(int ch) {
-      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-      return ch;
-  }
-#else
-  int fputc(int ch, FILE *f) {
-      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-      return ch;
-  }
-#endif
+//#ifdef __GNUC__
+//  int __io_putchar(int ch) {
+//      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+//      return ch;
+//  }
+//#else
+//  int fputc(int ch, FILE *f) {
+//      HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+//      return ch;
+//  }
+//#endif
 
 /**
  * @brief Function to print to console
  */
-void UART_print(const char* message);
+void UART_print(const char* msg);
 
 /**
  * @brief Function to send data to MODBUS master
@@ -174,6 +175,7 @@ void modbus_reply(char* msg, uint16_t length);
  *
  */
 void x_task_receive_modbus_RTU(void const* argument);
+
 #if MODBUS_TCP_ENABLE
 void x_task_receive_modbus_TCP(void const* argument);
 #endif
@@ -194,27 +196,21 @@ void x_task_led_blink(void const* argument);
 
 /**
  * @fn void UART_print(const char*)
- * @brief This function prints messages to serial terminal regadless of where it is called
- * It solvs the problem of not being able to print to terminal once t
- * the RTOS starts creating tasks, queues etc...
+ * @brief This function prints messages to serial terminal on UART 1
  *
- * @param message char buffer to print
+ * todo: create a serial debug object to add ability to change whch uart is used for debug
+ *
+ * @param msg char buffer to print
  */
-//void UART_print(const char* msg) {
-//	const char* p = msg;
-//
-//	while(*p) {
-//		while(!(huart1.Instance->SR & USART_SR_TXE)); 	// wait until TX buffer is empty
-//		huart1.Instance->DR = (*p++ & 0xFF);			// write next character
-//	}
-//
-//	//HAL_UART_Transmit(&huart1,(uint8_t*)message , strlen(message), HAL_MAX_DELAY);
-//
-//	while(!(huart1.Instance->SR & USART_SR_TC)); 		// wait for last byte to fully transmit
-//}
-
 void UART_print(const char* msg) {
-	HAL_UART_Transmit(&huart1, (uint8_t*) msg, strlen(msg), HAL_MAX_DELAY);
+//	xSemaphoreTake(uart_print_mutex, 1000);
+
+	{
+		HAL_UART_Transmit(&huart1, (uint8_t*) msg, strlen(msg), HAL_MAX_DELAY);
+	}
+
+//	xSemaphoreGive(uart_print_mutex);
+
 }
 
 /* USER CODE END 0 */
@@ -271,7 +267,12 @@ int main(void)
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
+  uart_print_mutex = xSemaphoreCreateMutex();
+  if(uart_print_mutex != NULL) {
+	  HAL_UART_Transmit(&huart1, (uint8_t*)"UART Mutex created OK\r\n", strlen("UART Mutex created OK\r\n"), 1000);
+  } else {
+	  HAL_UART_Transmit(&huart1, (uint8_t*)"Failed to create UART Mutex\r\n", strlen("Failed to create UART Mutex\r\n"), 1000);
+  }
 
   //x_relay_control_semaphore = xSemapahoreCreateBinary();
 
@@ -634,7 +635,7 @@ void x_task_print_to_terminal(void const* arguments ) {
 		if(xQueueReceive(modbus_RTU_print_to_terminal_queue_handle, &modbus_packet, 200) == pdTRUE) {
 
 			pkt_len = modbus_packet.len;
-			printf("Dequeued packet, len=%u\r\n", pkt_len);
+			printf("Dequeued packet, len=%u bytes\r\n", pkt_len);
 
 			for(size_t i=0; i < pkt_len; i++) {
 				printf("%02X ", modbus_packet.data[i]);
@@ -701,6 +702,8 @@ void x_task_receive_modbus_RTU(void const* argument) {
 			/* respond to master */
 			//MODBUS_send_response(response, response_length);
 
+		} else {
+			UART_print("Filed to receive RTU master reques\r\n");
 		}
 
 	}
@@ -871,7 +874,8 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	if(huart->Instance == USART2) { 			  // MAX485 is connected to USART2
 		ModBus_RTU_type_t msg;
 
-		UART_print("Data arrived on MODBUS\r\n");
+		/* do not use a UART mutex here because this callback behaves like an ISR */
+		HAL_UART_Transmit(&huart1, (uint8_t*)"Data arrived on MODBUS\r\n", strlen("Data arrived on MODBUS\r\n"), 1000);
 
 		/* clear the modbus packet buffer */
 		memset(&msg, 0, sizeof(ModBus_RTU_type_t));
@@ -881,22 +885,19 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 
 		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 		if(xQueueSendFromISR(modbus_RTU_dispatcher_queue_handle, &msg, &xHigherPriorityTaskWoken) == pdPASS) {
-			UART_print("Sent MODBUS RTU packet to queue from ISR\r\n");
+			HAL_UART_Transmit(&huart1, (uint8_t*)"Sent MODBUS RTU packet to queue from ISR\r\n", strlen("Sent MODBUS RTU packet to queue from ISR\r\n"), 1000);
 		} else {
-			UART_print("errQueueFull: Failed to send MODBUS RTU packet to queue from ISR\r\n");
+			HAL_UART_Transmit(&huart1, (uint8_t*)"errQueueFull: Failed to send MODBUS RTU packet to queue from ISR\r\n", strlen("errQueueFull: Failed to send MODBUS RTU packet to queue from ISR\r\n"), 1000);
 		}
 
 		// todo: check for failed queue send and log error
 
 		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);	// if task waiting for modbus has a higher priority, it will ranm(pre-empt a lower priroty task)
 
-		// restart the RECEIVE TO idle interrupt
-//		__HAL_UART_CLEAR_IDLEFLAG(&huart2);
-//		__HAL_UART_FLUSH_DRREGISTER(&huart2);
 		HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*) modbus_rx_message, MODBUS_RTU_MAX_SIZE);
 
 	} else {
-		UART_print("Interrupt failed\r\n");
+		HAL_UART_Transmit(&huart1, (uint8_t*)"UARTEx interrupt failed\r\n", strlen("UARTEx interrupt failed\r\n"), 1000);
 	}
 
 }
