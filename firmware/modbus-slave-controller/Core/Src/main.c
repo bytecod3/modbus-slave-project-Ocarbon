@@ -309,14 +309,15 @@ int main(void)
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS TCP queue failed to create\r\n", strlen("MODBUS TCP queue failed to create\r\n"), HAL_MAX_DELAY);
 
   }
+#endif
 
   modbus_RTU_dispatcher_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t));
-  if(modbus_TCP_queue_handle != NULL) {
+  if(modbus_RTU_dispatcher_queue_handle != NULL) {
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS dispatcher queue created OK\r\n", strlen("MODBUS dispatcher queue created OK\r\n"), HAL_MAX_DELAY);
   } else {
 	  HAL_UART_Transmit(&huart1,(uint8_t*)"MODBUS dispatcher queue failed to create\r\n", strlen("MODBUS dispatcher queue failed to create\r\n"), HAL_MAX_DELAY);
   }
-#endif
+
 
   modbus_RTU_print_to_terminal_queue_handle = xQueueCreate(10, sizeof(ModBus_RTU_type_t));
   if(modbus_RTU_print_to_terminal_queue_handle != NULL) {
@@ -338,17 +339,17 @@ int main(void)
   osThreadDef(get_device_diagnostics, x_task_get_device_diagnostics, osPriorityIdle + 3, 0, 128); // task to get the device parameters
   x_task_get_device_diagnostics_handle = osThreadCreate(osThread(get_device_diagnostics), NULL);
 
-//  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityIdle+ 5 , 0, 2048); // task to receive MODBUS data
-//  x_task_receive_modbus_RTU_handle = osThreadCreate(osThread(receive_modbus_RTU), NULL);
+  osThreadDef(receive_modbus_RTU, x_task_receive_modbus_RTU, osPriorityIdle+ 5 , 0, 2048); // task to receive MODBUS data
+  x_task_receive_modbus_RTU_handle = osThreadCreate(osThread(receive_modbus_RTU), NULL);
 
 #if MODBUS_TCP_ENABLE
   osThreadDef(receive_modbus_TCP, x_task_receive_modbus_TCP, osPriorityIdle + 3, 0, 128); // task to receive data via MODBUS TCP
   x_task_receive_modbus_TCP_handle = osThreadCreate(osThread(receive_modbus_TCP), NULL);
 #endif
 
-//  osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 1024); // task to print to UART if using UART debug
-//  x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
-//
+  osThreadDef(print_to_terminal, x_task_print_to_terminal, osPriorityNormal, 0, 1024); // task to print to UART if using UART debug
+  x_task_print_to_terminal_handle = osThreadCreate(osThread(print_to_terminal), NULL);
+
 ////  /* osThreadDef(clean_modbus_queue, x_task_clean_modbus_RTU_queue, osPriorityNormal, 0, 128); // task to dequeue items from MODBUS RTU task */
 ////  /* x_task_clean_modbus_RTU_queue_handle = osThreadCreate(osThread(clean_modbus_queue), NULL); */
 //
@@ -357,9 +358,9 @@ int main(void)
 //
 ////  osThreadDef(ethernet_control, x_task_ethernet_control, osPriorityNormal , 0, 1024); // task to control ethernet communicattion
 ////  x_task_ethernet_control_handle = osThreadCreate(osThread(ethernet_control), NULL);
-//
-//  osThreadDef(RTU_msg_dispatcher, x_task_modbus_RTU_dispatcher, osPriorityNormal, 0, 128); /* task to forward received MODBUS RTU message to consumers */
-//  x_task_modbus_RTU_dispatcher_handle = osThreadCreate(osThread(RTU_msg_dispatcher), NULL);
+
+  osThreadDef(RTU_msg_dispatcher, x_task_modbus_RTU_dispatcher, osPriorityNormal, 0, 128); /* task to forward received MODBUS RTU message to consumers */
+  x_task_modbus_RTU_dispatcher_handle = osThreadCreate(osThread(RTU_msg_dispatcher), NULL);
 
   osThreadDef(led_blink, x_task_led_blink, osPriorityNormal, 0, 128); /* task to blink LED based on the system state (fault or nominal) */
   x_task_led_blink_handle = osThreadCreate(osThread(led_blink), NULL);
@@ -666,7 +667,7 @@ void x_task_receive_modbus_RTU(void const* argument) {
 
 	for(;;) {
 		if(xQueueReceive(modbus_RTU_queue_handle, &modbus_message, portMAX_DELAY) == pdTRUE) {
-			UART_print("RECEIVED MASTER REQUEST OK\r\n");
+			UART_print("Received request from master OK\r\n");
 			// debug via USART1
 
 //			if(modbus_message.len < 4) continue; // skip this frame its too short
@@ -873,20 +874,21 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 		UART_print("Data arrived on MODBUS\r\n");
 
 		/* clear the modbus packet buffer */
-//		memset(&msg, 0, sizeof(ModBus_RTU_type_t));
-//
-//		msg.len = Size; 						   // whatever length that has been received
-//		memcpy(msg.data, modbus_rx_message, Size); // copy to MODBUS data field
-//
-//		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-//		if(xQueueSendFromISR(modbus_RTU_dispatcher_queue_handle, &msg, &xHigherPriorityTaskWoken) == pdPASS) {
-//			UART_print("Sent MODBUS RTU from ISR\r\n");
-//		} else {
-//			UART_print("Failed to send MODBUS RTU from ISR\r\n");
-//		}
+		memset(&msg, 0, sizeof(ModBus_RTU_type_t));
+
+		msg.len = Size; 						   // whatever length that has been received
+		memcpy(msg.data, modbus_rx_message, Size); // copy to MODBUS data field
+
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		if(xQueueSendFromISR(modbus_RTU_dispatcher_queue_handle, &msg, &xHigherPriorityTaskWoken) == pdPASS) {
+			UART_print("Sent MODBUS RTU packet to queue from ISR\r\n");
+		} else {
+			UART_print("errQueueFull: Failed to send MODBUS RTU packet to queue from ISR\r\n");
+		}
+
 		// todo: check for failed queue send and log error
 
-		//portYIELD_FROM_ISR(xHigherPriorityTaskWoken);	// if task waiting for modbus has a higher priority, it will ranm(pre-empt a lower priroty task)
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);	// if task waiting for modbus has a higher priority, it will ranm(pre-empt a lower priroty task)
 
 		// restart the RECEIVE TO idle interrupt
 //		__HAL_UART_CLEAR_IDLEFLAG(&huart2);
@@ -894,7 +896,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 		HAL_UARTEx_ReceiveToIdle_IT(&huart2, (uint8_t*) modbus_rx_message, MODBUS_RTU_MAX_SIZE);
 
 	} else {
-//		UART_print("Interrupt failed\r\n");
+		UART_print("Interrupt failed\r\n");
 	}
 
 }
